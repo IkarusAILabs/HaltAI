@@ -1,6 +1,7 @@
-# Example HaltAI v1 deployment manifest (non-production, synthetic write).
+# HaltAI deployment manifest: the one deployment being assessed.
+# Replace the example values with your own non-production resources.
 name: demo-agent
-version: "2026.10.20-1"
+version: "1"
 aws_account_id: "123456789012"
 region: eu-west-2
 
@@ -8,7 +9,8 @@ runtime:
   kind: ecs
   cluster: haltai-demo
   service: demo-agent-worker
-  task_definition: demo-agent-worker:1
+  task_definition: demo-agent-worker
+  container: agent
 
 identity:
   role_arn: arn:aws:iam::123456789012:role/demo-agent-task
@@ -17,25 +19,40 @@ identity:
 work_intake:
   kind: sqs
   queue_url: https://sqs.eu-west-2.amazonaws.com/123456789012/demo-agent-jobs
+  visibility_timeout_s: 30
 
 tool_gateway:
-  endpoint: https://tools.demo.internal/v1
+  endpoint: https://abc123.execute-api.eu-west-2.amazonaws.com/v1
   auth: iam
+  rest_api_id: abc123
+  stage: v1
+  write_route: POST /tools/synthetic_write
 
 protected_effect:
   name: synthetic_write
   description: Writes a marker item to a test DynamoDB table via the tool gateway
   synthetic: true
-  probe: POST /v1/tools/synthetic_write and expect 403 while contained
+  probe: Probe job asks the worker to call the write route; result recorded in probes table
+  store:
+    kind: dynamodb
+    table: haltai-markers
+  direct_actions: [dynamodb:PutItem]
 
 containment_policy:
   name: deny-writes-demo-agent
-  activation: Attach deny policy to gateway route for the agent identity
-  rollback: Detach deny policy and confirm a probe write succeeds
+  mechanism: gateway_resource_policy_deny   # or iam_inline_deny
+  activation: Add a Deny for the agent role on the write route and redeploy the stage
+  rollback: Remove the HaltAI Deny statement, redeploy, confirm a probe write succeeds
 
 collateral_probe:
-  name: unrelated-app-health
-  check: GET https://app.demo.internal/health returns 200 throughout the drill
+  name: unrelated-app
+  check: GET health URL returns 200 throughout the drill
+  url: null                 # e.g. https://app.nonprod.example.com/health
+  role_arn: arn:aws:iam::123456789012:role/unrelated-app
+
+probes:
+  results_table: haltai-probe-results
+  timeout_s: 60
 
 authorisation:
   approved_by: owner@example.com

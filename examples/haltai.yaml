@@ -1,0 +1,25 @@
+# HaltAI run configuration.
+# backend: simulated runs everything against an in-memory model of the deployment
+# (no AWS calls). Change to `aws` to drill a real non-production deployment.
+backend: simulated
+manifest: deployment.yaml
+
+drill:
+  repetitions: 5            # Claim 1 repetitions
+  poll_interval_s: 2        # how often to probe while waiting for denial
+  deny_timeout_s: 120       # give up waiting for denial (or recovery) after this
+  observation_window_s: 60  # keep probing after denial to catch flapping
+  max_drill_duration_s: 1800
+  reports_dir: reports
+
+# Only used when backend: aws
+aws:
+  profile: null             # e.g. haltai-nonprod
+  region: null              # defaults to the manifest region
+
+# Only used when backend: simulated
+simulation:
+  seed: 7
+  propagation_delay_s: 8    # how long a deny takes to take effect
+  jitter_s: 3
+  scenarios: []             # e.g. [bypass_direct_write]; see `haltai scenarios`
