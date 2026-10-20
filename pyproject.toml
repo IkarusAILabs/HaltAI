@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "haltai"
-version = "0.1.0"
+version = "0.2.0"
 description = "Containability assurance for registered AI-agent deployments"
 readme = "README.md"
 license = "Apache-2.0"
@@ -18,10 +18,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "moto[ecs,iam,sqs]>=5", "ruff>=0.5", "mypy>=1.10", "types-PyYAML"]
+dev = ["pytest>=8", "moto[apigateway,dynamodb,ecs,iam,sqs,awslambda]>=5", "ruff>=0.5", "mypy>=1.10", "types-PyYAML", "boto3-stubs"]
 
 [project.scripts]
 haltai = "haltai.cli:app"
+haltai-probe = "haltai.contract:probe_main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/haltai"]
@@ -35,3 +36,6 @@ select = ["E", "F", "I", "B", "UP"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/haltai/cli.py" = ["B008"]  # typer declares options as call defaults

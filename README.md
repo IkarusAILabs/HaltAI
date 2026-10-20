@@ -1,61 +1,98 @@
 # HaltAI
 
-**Containability assurance for AI agents.** HaltAI checks whether a *registered* AI-agent deployment can be selectively stopped from performing specified effects (for example, new writes through a tool gateway) without disrupting unrelated applications. It produces **deployment-bound, claim-level evidence** rather than a single "safe" score.
+**Containability assurance for AI agents.** HaltAI checks whether a *registered* AI-agent deployment can be selectively stopped from performing a specified effect (for example, new writes through a tool gateway) without disrupting unrelated applications. It produces **deployment-bound, claim-level evidence** rather than a single "safe" score.
 
-> Status: **v0.1, validation stage.** Scope is explicitly registered AWS agent deployments (initially one dedicated ECS worker behind an authenticated tool gateway). See [`docs/roadmap.md`](docs/roadmap.md).
+> Status: **v0.2, validation stage.** The drill engine, evidence model and reports are complete and run against a **simulated** AWS deployment by default. An **aws** backend is implemented against boto3 and tested only with mocks; it has not yet been run against a real account. See [`docs/roadmap.md`](docs/roadmap.md) and [`docs/v1-implementation-plan.md`](docs/v1-implementation-plan.md).
 
-## What HaltAI is (and isn't)
-
-HaltAI **does**:
-
-- Bind an assessment to an exact deployment and configuration snapshot (manifest + fingerprint).
-- Test specific containment claims with authorised, non-production drills.
-- Report each claim as `verified` / `failed` / `partial` / `unknown`, with its evidence level, assumptions, measured interval and residual exposure.
-- Treat missing information as an assessment limitation, never as a pass.
-
-HaltAI **does not**:
-
-- Discover every agent, credential or path in an AWS estate.
-- Guarantee a global or instant shutdown, or reverse completed side effects.
-- Replace IAM, GuardDuty, Security Hub, gateway policy engines or incident response.
-- Act as a general-purpose LLM gateway.
-
-## v1 scope: two primary claims
-
-1. **New protected writes are denied.** After containment is activated, new writes through the registered tool gateway are rejected within a measured interval.
-2. **Restart and retry do not restore write access.** Worker restarts or retried queued jobs still can't perform the protected write while containment is active.
-
-## Evidence levels
-
-| Level | Meaning |
-|---|---|
-| `configured` | The intended control appears in inspected configuration. |
-| `enforcement_tested` | An authorised negative test was rejected by the effective control. |
-| `boundary_assessed` | Checks and tests assessed whether the protected effect must pass through the enforcement point. |
-| `observed_after_activation` | Monitored paths showed no relevant activity during an observation window. |
-
-These levels are not interchangeable. A passing gateway probe alone doesn't show the gateway can't be bypassed.
-
-## Quick start (development)
+## Quick start
 
 ```bash
-python -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
-haltai validate examples/deployment.yaml
-haltai fingerprint examples/deployment.yaml
-pytest
+pip install -e ".[dev]"      # or: pip install git+https://github.com/IkarusAILabs/HaltAI
+mkdir demo && cd demo
+haltai init                  # writes haltai.yaml + deployment.yaml (simulated backend)
+haltai check                 # static checks: identity, gateway bypass, containment pre-staged
+haltai drill                 # Claim 1 + Claim 2 drills, report in reports/
+haltai matrix                # every failure scenario vs. the result HaltAI must report
 ```
+
+Try a failure: `haltai drill -s local_flag_containment` reports Claim 2 as **FAILED**, because a replacement worker doesn't inherit a flag kept inside the old worker. `haltai scenarios` lists them all.
+
+## Configuration
+
+Two small YAML files:
+
+| File | Says | Key settings |
+|---|---|---|
+| `deployment.yaml` | **What** is assessed: one deployment and its declared paths | role, queue, gateway route, protected effect, containment mechanism, collateral probe, authorisation |
+| `haltai.yaml` | **How** HaltAI runs | `backend`, drill timing, simulation scenarios |
+
+Switching from simulation to a real non-production AWS deployment is one line:
+
+```yaml
+backend: aws        # was: simulated
+aws:
+  profile: haltai-nonprod
+```
+
+or `HALTAI_BACKEND=aws haltai drill --confirm`. Real drills also need `authorisation.disruptive_tests_allowed: true`, a non-production `environment`, and a matching account. Before switching, read [`docs/aws-backend.md`](docs/aws-backend.md) and [`docs/integration-contract.md`](docs/integration-contract.md).
+
+## What the drills test
+
+1. **Claim 1: new protected writes are denied.** Positive control → activate containment → poll until denied (measured interval) → observation window → rollback → recovery verified. Repeated N times.
+2. **Claim 2: restart and retry don't restore write access.** While contained: worker restart, one-off fresh task, forced redeploy and job retry must all stay denied. No agent write may be initiated after containment became effective.
+
+Each claim is reported as `verified` / `failed` / `partial` / `unknown`, with its evidence level, measured interval, assumptions, residual exposure and the reasons. The decision rules are in [`docs/claims.md`](docs/claims.md).
+
+| Evidence level | Meaning |
+|---|---|
+| `configured` | The intended control appears in inspected configuration. |
+| `enforcement_tested` | An authorised negative test, run as the agent, was rejected by the control. |
+| `boundary_assessed` | Policy simulation shows the agent can't perform the effect without the gateway. |
+| `observed_after_activation` | No agent write was initiated after denial during the observation window. |
+
+## Simulated failure scenarios
+
+| Scenario | Claim 1 | Claim 2 | Also reported |
+|---|---|---|---|
+| `clean` | verified | verified | |
+| `bypass_direct_write` | partial | partial | bypass path |
+| `local_flag_containment` | verified | failed | |
+| `preload_queue` | verified | verified | residual queued work |
+| `async_downstream` | verified | verified | writes completed after containment |
+| `shared_identity` | partial | partial | collateral impact, blocking limitation |
+| `broken_gateway` | unknown | unknown | no positive control |
+| `slow_propagation` | failed | unknown | |
+| `no_recovery` | partial | unknown | recovery not verified, drill stopped |
+
+## Safety
+
+- Every activation is paired with a rollback in `finally`, followed by a recovery probe.
+- If recovery can't be verified, the drill stops.
+- Real drills refuse to run without `--confirm`, in production, against a different account, or with blocking limitations (unless `--accept-limitations`).
+- `haltai rollback --confirm` removes HaltAI containment after an interrupted drill.
+
+## What HaltAI doesn't do
+
+It doesn't discover agents, guarantee instant or global shutdown, reverse completed side effects, replace IAM/GuardDuty/incident response, or act as an LLM gateway.
 
 ## Repository layout
 
 ```
-docs/roadmap.md          Product roadmap, prerequisites, limitations
-src/haltai/models.py     Claim, evidence and result schema
-src/haltai/manifest.py   Deployment manifest loading and prerequisite checks
-src/haltai/fingerprint.py Configuration fingerprint (validity boundary)
-src/haltai/cli.py        `haltai` command-line entry point
-examples/                Example deployment manifest
-tests/                   Unit tests
+src/haltai/
+  cli.py            haltai command
+  config.py         haltai.yaml
+  manifest.py       deployment.yaml + prerequisite checks
+  checks.py         static checks (identity, bypass, pre-staging)
+  drill.py          Claim 1 / Claim 2 drill engine, report assembly
+  evaluate.py       decision rules: observations -> claim result
+  report.py         report.json + report.md
+  backends/
+    simulated.py    in-memory model of the deployment (default)
+    aws.py          boto3 backend (mock-tested only)
+  contract.py       helpers + haltai-probe entry point for agent integration
+  scenarios.py      failure scenarios and expected results
+docs/               roadmap, plan, claims, integration contract, AWS backend
+tests/              unit, scenario matrix, CLI, moto-based AWS tests
 ```
 
 ## License
