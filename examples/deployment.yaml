@@ -1,0 +1,54 @@
+# Example HaltAI v1 deployment manifest (non-production, synthetic write).
+name: demo-agent
+version: "2026.10.20-1"
+aws_account_id: "123456789012"
+region: eu-west-2
+
+runtime:
+  kind: ecs
+  cluster: haltai-demo
+  service: demo-agent-worker
+  task_definition: demo-agent-worker:1
+
+identity:
+  role_arn: arn:aws:iam::123456789012:role/demo-agent-task
+  dedicated: true
+
+work_intake:
+  kind: sqs
+  queue_url: https://sqs.eu-west-2.amazonaws.com/123456789012/demo-agent-jobs
+
+tool_gateway:
+  endpoint: https://tools.demo.internal/v1
+  auth: iam
+
+protected_effect:
+  name: synthetic_write
+  description: Writes a marker item to a test DynamoDB table via the tool gateway
+  synthetic: true
+  probe: POST /v1/tools/synthetic_write and expect 403 while contained
+
+containment_policy:
+  name: deny-writes-demo-agent
+  activation: Attach deny policy to gateway route for the agent identity
+  rollback: Detach deny policy and confirm a probe write succeeds
+
+collateral_probe:
+  name: unrelated-app-health
+  check: GET https://app.demo.internal/health returns 200 throughout the drill
+
+authorisation:
+  approved_by: owner@example.com
+  environment: staging
+  disruptive_tests_allowed: true
+
+assumptions:
+  - Tool gateway and its policy store are not compromised
+  - Agent cannot obtain credentials outside its task role
+
+unsupported_paths:
+  - Direct DynamoDB access using credentials not issued to the task role
+  - Other AWS regions
+
+downstream_side_effects:
+  - None (synthetic table only)
