@@ -67,6 +67,20 @@ Failure-injection toggles in the testbed (each one maps to a roadmap failure con
 
 Each milestone is a reviewable pull request with its own acceptance criteria. M1–M4 need no AWS account (unit tests use moto and fakes). M5 onwards need a non-production AWS account.
 
+**Status (v0.2).** Built against a simulated deployment instead of a real account, and against boto3 with mocks only:
+
+| Milestone | Status |
+|---|---|
+| M1 Claim specs and rules | Done: `docs/claims.md`, `evaluate.py`, 1:1 tests. Baseline checklist and threat model still open. |
+| M2 Reference testbed | Replaced for now by the simulated backend (`backends/simulated.py`) with all failure toggles. CDK testbed deferred until a non-prod account exists. |
+| M3 Snapshot and fingerprint | Done (simulated + aws), moto-tested. |
+| M4 Static checks | Done (simulated + aws); policy simulation stubbed in tests. |
+| M5 Containment adapters | Done: gateway resource-policy deny, IAM inline deny, guards, `haltai rollback`. Moto-tested. |
+| M6 Claim 1 drill | Done; verified on all simulated scenarios. |
+| M7 Claim 2 drill | Done; verified on all simulated scenarios. |
+| M8 Evidence report | Done: `report.json` + `report.md`. |
+| M9 Failure matrix | Done in simulation (`haltai matrix`, run in CI). Baseline comparison open. |
+
 ### M1 — Claim specifications and result rules (Phase 1)
 
 - `docs/claims/claim-1-new-writes-denied.md` and `docs/claims/claim-2-restart-retry.md`: statement, preconditions, procedure, the evidence each step produces, and a **decision table** mapping observations to `verified` / `failed` / `partial` / `unknown`.
