@@ -16,4 +16,6 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: pip install -e ".[dev]"
       - run: ruff check .
+      - run: mypy src
       - run: pytest
+      - run: cd examples && haltai matrix
