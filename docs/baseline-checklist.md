@@ -1,6 +1,6 @@
 # Baseline: shutdown checklist and runbook
 
-**Version:** 0.1 · **Last updated:** 25 October 2026 · **Roadmap:** Stage 0
+**Version:** 0.1 · **Last updated:** 25 October 2026 · **Roadmap:** Phase 0 (v0.4)
 
 HaltAI is only worth building if it beats this. It is what a competent cloud engineer would do without HaltAI: review the configuration, then run a manual shutdown test. Every drill and every customer trial is compared against it.
 
@@ -64,10 +64,23 @@ Done perfectly, this checklist finds most of what HaltAI finds. **HaltAI does no
 4. **Residual work with IDs**, not just a count or someone's recollection.
 5. **Evidence bound to a configuration fingerprint**, so a re-run after a change is cheap and comparable.
 
-Whether these matter enough to adopt a tool is the Stage 2 question. Gate evidence must come from real teams: how often B1, B5 and A2–A4 are skipped or wrong in practice, and whether HaltAI found something their own process missed.
+Whether these matter enough to adopt a tool is the market-validation question. Gate evidence must come from real teams: how often B1, B5 and A2–A4 are skipped or wrong in practice, and whether HaltAI found something their own process missed.
+
+### Other baselines (roadmap v0.4)
+
+Since HaltAI is now aimed at a break-glass emergency stop, the comparison during market validation also covers existing tools:
+
+| Baseline | What to compare |
+|---|---|
+| ServiceNow AI Control Tower containment | Preparation effort; whether agents need connectors or integration; status and audit detail; independence from the governance platform |
+| AWS platform controls (AgentCore session stop, IAM, network security) done by hand | Time and steps to halt; whether restart, retry and schedules are covered; verification of effect |
+| AWS Fault Injection Service | Whether it can rehearse the same levers and verify their effect |
+| The team's own incident runbook | Everything in parts A and B above |
+
+The same rule applies to every baseline: score what each one actually catches and verifies, not what it claims to cover.
 
 ### Caveats on this scoring
 
-- It was scored by HaltAI's authors, which biases it. In Stage 2, have engineers from participating teams run the checklist on the same testbed and score it independently.
+- It was scored by HaltAI's authors, which biases it. During market validation, have engineers from participating teams run the checklist on the same testbed and score it independently.
 - It assumes the strong checklist above. Each team's actual runbook should be scored too; that is the realistic baseline.
-- Simulation shows the method works. It is not evidence about real AWS behaviour (Stage 1).
+- Simulation shows the method works. It is not evidence about real AWS behaviour (roadmap Phase 3).

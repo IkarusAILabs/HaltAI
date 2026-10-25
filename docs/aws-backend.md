@@ -2,6 +2,8 @@
 
 > The aws backend is implemented and tested with moto and stubs only. It has not yet been run against a real account. Start in a disposable non-production account.
 
+> **Scope (roadmap v0.4).** This page describes today's **drill** backend: one registered deployment, a gateway or IAM deny, and probes that rely on the [integration contract](integration-contract.md). The planned break-glass commands (`prepare`, `halt`, `status`, `release`) will use new AWS adapters for the four levers (identity, network, workload, work intake), act on a declared boundary, and need no agent code. They are not implemented yet. See [roadmap section 6](roadmap.md#6-the-four-levers-on-aws).
+
 ## Switch
 
 ```yaml
@@ -33,7 +35,7 @@ haltai rollback --confirm     # if a drill was interrupted
 
 Both changes are eventually consistent, which is why HaltAI measures the time to denial instead of assuming it.
 
-Neither is a pre-staged toggle: each reconfigures the deployment at activation, and `haltai check` says so. Stage 1 of the roadmap measures a pre-staged alternative.
+Neither is a pre-staged toggle: each reconfigures the deployment at activation, and `haltai check` says so. The planned `haltai prepare` replaces this with pre-staged controls (roadmap v0.4, section 6).
 
 `haltai check` also guards activation:
 
