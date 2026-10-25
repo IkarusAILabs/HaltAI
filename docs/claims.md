@@ -2,6 +2,25 @@
 
 The rules below are implemented in `src/haltai/evaluate.py` and covered one-to-one by `tests/test_evaluate.py`.
 
+**Where the claims fit (roadmap v0.4).** Today the claims are evaluated by `haltai drill` for one gateway-deny profile, and Claims 1 and 2 read effect evidence from the optional [integration contract](integration-contract.md). In the planned break-glass model they become the verification checks behind `haltai status`:
+
+- Claim 1 generalises to each lever's effect.
+- Claim 2 becomes the latching check across restart, autoscaling, retries and schedules.
+- Claim 3 is mandatory in `haltai prepare`.
+
+Effect evidence will come from a HaltAI-owned canary probe running as the agent's identity, plus infrastructure observation, without agent code. See [roadmap section 8](roadmap.md#8-verification).
+
+## Evidence levels
+
+| Level | Meaning |
+|---|---|
+| `configured` | The intended control appears in inspected configuration. |
+| `enforcement_tested` | An authorised negative test, run as the agent, was rejected. |
+| `boundary_assessed` | Policy simulation shows the agent can't perform the effect, or undo the control, without passing the enforcement point. |
+| `observed_after_activation` | No agent activity was observed after denial during the observation window. |
+
+These levels are not interchangeable. A successful probe through one path doesn't show that no other path exists.
+
 ## Shared definitions
 
 - **Probe:** an attempt to perform the protected effect **as the agent**. A *worker probe* is a probe job handled by the running agent worker. A *fresh-task probe* runs as a one-off task from the agent's own task definition.
