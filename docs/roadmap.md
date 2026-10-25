@@ -1,7 +1,7 @@
 # HaltAI — Mission and Roadmap
 
 **Status:** v0.2 code; direction revised to a break-glass emergency stop
-**Version:** 0.4 (supersedes 0.3 of 25 October 2026)
+**Version:** 0.4 (supersedes 0.3 of 25 October 2026). This is the document's revision, not a software release; releases are numbered separately in the [release plan](release-plan.md).
 **Last updated:** 25 October 2026
 **Next decision review:** 29 January 2027
 **Owner:** To be assigned per workstream (section 13)
@@ -211,7 +211,7 @@ The simulated backend and scenario matrix remain the test foundation. New scenar
 | Gateway-deny and IAM-deny adapters (as drill profiles) | Production allowed only after the Phase 4 gate | Two profiles, with blast radius documented |
 | Threat model, baseline checklist | Integration contract becomes optional | Comparison with ServiceNow AI Control Tower, AgentCore and runbooks |
 
-Open good-first issues (#6, #8–#11, #16) stay relevant. #16 (`check --json` backend field and exit codes) is groundwork for the `status` and `halt` output.
+Open good-first issues (#4, #6, #9–#11, #16) stay relevant. #16 (`check --json` backend field and exit codes) is groundwork for the `status` and `halt` output.
 
 ------------------------------------------------------------------------
 
@@ -220,7 +220,8 @@ Open good-first issues (#6, #8–#11, #16) stay relevant. #16 (`check --json` ba
 ```
 Phase 0  Foundations: claims, simulation, Claim 3, threat model    done
 Phase 1  Define the emergency boundary (sim + IaC)          ── to 22 Nov 2026
-Phase 2  Build prepare/halt/status/release (sim, then AWS)  ── to 20 Dec 2026
+Phase 2  Build prepare/halt/status/release: simulation     ── to 20 Dec 2026
+         … then AWS adapters and canary (mock-tested)      ── to 17 Jan 2027
 Phase 3  Prove the hard stop in real non-production AWS     ── needs account
 Market   Validation interviews and competitor comparison    ── in parallel
          Decision review                                         29 Jan 2027
@@ -240,7 +241,7 @@ Claims 1–3, simulated backend with 11 scenarios, static checks with activation
 
 **Gate:** the boundary is fully declarable; the simulator models every lever and the new failure scenarios.
 
-### Phase 2 — Build the break-glass action (to 20 December 2026)
+### Phase 2 — Build the break-glass action (simulation to 20 December 2026; AWS adapters to 17 January 2027)
 - `prepare`: create pre-staged controls without activating them; operator-permission check; Claim 3 on the boundary; fingerprint.
 - `halt`: the halt-agents profile first, lever order from section 6, an audit record per action, continuing past failed levers.
 - `status`: lever states and residual activity; never says "stopped" without effect evidence.
@@ -279,6 +280,14 @@ Also: time to effective denial per lever (distribution and resolution), whether 
 
 ### Phase 4 — Operational safety (then production)
 Preflight validation, a protected audit store, partial-failure reporting and safe retry, dual authorisation for the isolate profile, an independent recovery path, and a documented manual fallback. Drift detection invalidates `prepare`.
+
+**Break-glass availability:** HaltAI must work when other systems are failing. That means:
+- pinned dependencies;
+- an offline install bundle and a container image;
+- no network calls except to AWS;
+- guidance for pre-installing it on the operator's workstation or bastion.
+
+**Supply chain:** signed releases, an SBOM, and reproducible builds.
 
 **Gate:** halt and release behave correctly under partial failure, API errors, propagation delay and loss of the HaltAI process. Only then may `halt` run against production, under an explicit policy.
 
@@ -325,6 +334,8 @@ No published response-time or coverage figures before representative testing.
 
 ## 13. Workstreams and immediate backlog
 
+The [release plan](release-plan.md) breaks these into numbered releases (0.2.1 to 1.0.0) with build steps and exit criteria.
+
 Workstreams needing an owner: boundary and adapters; verification and canary; operator safety and audit; simulation and tests; market validation; documentation.
 
 1. Environment declaration schema and validator. *(Phase 1)*
@@ -333,7 +344,7 @@ Workstreams needing an owner: boundary and adapters; verification and canary; op
 4. Canary-probe design: a HaltAI-owned task run as the agent role in the agent subnets, launched by the execution role (section 7.1). *(Phase 1)*
 5. `prepare` with Claim 3 on the boundary. *(Phase 2)*
 6. `halt` (halt-agents), `status`, `release` in simulation; then AWS adapters. *(Phase 2)*
-7. Non-production account; first real halt drill. *(Phase 3)*
+7. Disposable non-production AWS setup with AWS Organizations, **requested by 15 November 2026** (critical path); then the first real halt drill. *(Phase 3)*
 8. Interviews and competitor comparison. *(Market, from now)*
 9. Decision review on 29 January 2027.
 
