@@ -159,13 +159,14 @@ A universal safety-valve **pattern** is the ambition. A universal guarantee is n
 | **4. Operational safety** | Audit, partial failure, dual authorisation, independent recovery; then production use | After the decision review on 29 Jan 2027 |
 | **5. Expand** | More runtimes, discovery, other clouds, only with evidence | Future |
 
-Details, gates and the decision record: [roadmap](docs/roadmap.md).
+Details, gates and the decision record: [roadmap](docs/roadmap.md). Release-by-release build steps: [release plan](docs/release-plan.md).
 
 ## Documentation
 
 | Document | What it explains |
 |---|---|
 | [Roadmap](docs/roadmap.md) | Positioning, operating model, levers, phases and gates |
+| [Release plan](docs/release-plan.md) | Releases 0.2.1 to 1.0.0: build steps, exit criteria, risks |
 | [Threat model](docs/threat-model.md) | What is in scope, what is trusted and what is excluded |
 | [Claims](docs/claims.md) | Claim procedures, evidence levels and decision rules |
 | [Baseline checklist](docs/baseline-checklist.md) | Manual assessment to compare with HaltAI |
