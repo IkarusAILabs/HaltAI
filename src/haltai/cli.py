@@ -101,7 +101,7 @@ def check(config: str | None = ConfigOpt,
           scenario: list[str] = typer.Option(None, "--scenario", "-s",
                                              help="Simulated failure scenario (repeatable)")
           ) -> None:
-    """Run static checks only (no containment): identity, bypass, pre-staging."""
+    """Run static checks only (no containment): identity, bypass, pre-staging, escape."""
     cfg, m = _load(config)
     b = make_backend(cfg, m, scenario or None)
     res = run_static_checks(b)
@@ -109,18 +109,24 @@ def check(config: str | None = ConfigOpt,
     typer.echo(f"Backend: {b.name}")
     for e in res.evidence:
         typer.secho(f"  [{e.level.value}] {e.description}", fg="green")
+    for e in res.escape_evidence:
+        typer.secho(f"  [{e.level.value}] {e.description}", fg="green")
     for p in res.bypass_paths:
         typer.secho(f"  [bypass] {p}", fg="yellow")
+    for p in res.escape.paths:
+        typer.secho(f"  [escape] {p}", fg="red")
+    for label in res.escape.unknown:
+        typer.secho(f"  [not evaluated] {label}", fg="yellow")
     for lim in lims:
         typer.secho(f"  [{'blocking' if lim.blocking else 'limitation'}] {lim.field}: "
                     f"{lim.reason}", fg="red" if lim.blocking else "yellow")
-    if any(lim.blocking for lim in lims) or res.bypass_paths:
+    if any(lim.blocking for lim in lims) or res.bypass_paths or res.escape.paths:
         raise typer.Exit(1)
 
 
 @app.command()
 def drill(config: str | None = ConfigOpt,
-          claim: str = typer.Option("all", help="1, 2 or all"),
+          claim: str = typer.Option("all", help="1, 2, 3 or all"),
           scenario: list[str] = typer.Option(None, "--scenario", "-s",
                                              help="Simulated failure scenario (repeatable)"),
           out: Path | None = typer.Option(None, help="Report directory"),
@@ -130,7 +136,7 @@ def drill(config: str | None = ConfigOpt,
           quiet: bool = typer.Option(False, "--quiet", "-q")) -> None:
     """Run containment drills and write an evidence report."""
     cfg, m = _load(config)
-    claims = {"1", "2"} if claim == "all" else {claim}
+    claims = {"1", "2", "3"} if claim == "all" else {claim}
     b = make_backend(cfg, m, scenario or None)
     try:
         # Guards that need no inspection run first, so nothing is touched without --confirm.
@@ -172,7 +178,7 @@ def scenarios() -> None:
     """List simulated failure scenarios and the results HaltAI must report."""
     for s in SCENARIOS.values():
         typer.echo(f"{s.name:24} claim1={s.claim1.value:9} claim2={s.claim2.value:9} "
-                   f"{s.description}")
+                   f"claim3={s.claim3.value:9} {s.description}")
 
 
 @app.command()
@@ -180,20 +186,22 @@ def matrix(config: str | None = ConfigOpt,
            out: Path | None = typer.Option(None, help="Write a Markdown matrix here")) -> None:
     """Run every simulated scenario and compare actual with expected results."""
     cfg, m = _load(config, backend="simulated")
-    rows = ["| Scenario | Claim 1 | Claim 2 | Collateral | Residual | Recovery | Match |",
-            "|---|---|---|---|---|---|---|"]
+    rows = ["| Scenario | Claim 1 | Claim 2 | Claim 3 | Collateral | Residual | Recovery "
+            "| Match |", "|---|---|---|---|---|---|---|---|"]
     all_ok = True
     for s in SCENARIOS.values():
         b = make_backend(cfg, m, [s.name])
-        r = assess(b, cfg.drill, {"1", "2"}, [s.name])
-        c1, c2 = (c.result for c in r.claims)
+        r = assess(b, cfg.drill, {"1", "2", "3"}, [s.name])
+        c1, c2, c3 = (c.result for c in r.claims)
         coll = bool(r.collateral_impact)
         resid = any(c.residual_work_items for c in r.claims)
         rec = r.recovery_verified is not False
-        ok = (c1, c2, coll, resid, rec) == (s.claim1, s.claim2, s.collateral_impact,
-                                           s.residual_exposure, s.recovery_verified)
+        ok = (c1, c2, c3, coll, resid, rec) == (s.claim1, s.claim2, s.claim3,
+                                               s.collateral_impact, s.residual_exposure,
+                                               s.recovery_verified)
         all_ok &= ok
-        rows.append(f"| {s.name} | {c1.value} | {c2.value} | {'yes' if coll else 'no'} | "
+        rows.append(f"| {s.name} | {c1.value} | {c2.value} | {c3.value} | "
+                    f"{'yes' if coll else 'no'} | "
                     f"{'yes' if resid else 'no'} | {'yes' if rec else 'NO'} | "
                     f"{'yes' if ok else 'MISMATCH'} |")
     text = "\n".join(rows)

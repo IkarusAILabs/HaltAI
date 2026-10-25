@@ -71,7 +71,7 @@ Each milestone is a reviewable pull request with its own acceptance criteria. M1
 
 | Milestone | Status |
 |---|---|
-| M1 Claim specs and rules | Done: `docs/claims.md`, `evaluate.py`, 1:1 tests. Baseline checklist and threat model still open. |
+| M1 Claim specs and rules | Done: `docs/claims.md`, `evaluate.py`, 1:1 tests, `docs/baseline-checklist.md`, `docs/threat-model.md`. Claim 3 added (roadmap v0.3). |
 | M2 Reference testbed | Replaced for now by the simulated backend (`backends/simulated.py`) with all failure toggles. CDK testbed deferred until a non-prod account exists. |
 | M3 Snapshot and fingerprint | Done (simulated + aws), moto-tested. |
 | M4 Static checks | Done (simulated + aws); policy simulation stubbed in tests. |

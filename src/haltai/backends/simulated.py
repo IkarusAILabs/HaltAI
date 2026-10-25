@@ -7,7 +7,8 @@ Nothing here touches AWS. The world models the pieces the claims depend on:
 * an ECS service whose tasks can be restarted or redeployed, plus one-off tasks;
 * an SQS queue with visibility timeout, retries and a DLQ;
 * a DynamoDB marker table recording every completed protected write;
-* an unrelated application that uses the same gateway with its own role.
+* an unrelated application that uses the same gateway with its own role;
+* the agent role's permissions over its own containment (Claim 3).
 
 Time is virtual: ``sleep`` advances the clock and runs the world, so a full drill
 finishes in milliseconds and results are reproducible from ``seed``.
@@ -22,6 +23,7 @@ from typing import Any
 
 from haltai.backends.base import Backend
 from haltai.config import SimulationSettings
+from haltai.escape import EscapeAction, EscapeKind
 from haltai.manifest import ContainmentMechanism, DeploymentManifest
 from haltai.models import Marker, ProbeOutcome, ProbeStatus, ProbeVia
 from haltai.scenarios import validate_scenarios
@@ -33,6 +35,10 @@ FRESH_TASK_START_S = 3.0
 MAX_RECEIVES = 3
 PRELOAD_JOBS = 3
 SLOW_PROPAGATION_S = 3600.0
+ESCAPE_GRANTS = {
+    "agent_can_lift_deny": {EscapeKind.LIFT_CONTAINMENT, EscapeKind.SELF_ESCALATION},
+    "agent_can_spawn_compute": {EscapeKind.NEW_COMPUTE},
+}
 
 
 @dataclass
@@ -198,6 +204,9 @@ class SimulatedBackend(Backend):
         if "bypass_direct_write" in self.scenarios:
             statements.append({"Effect": "Allow", "Action": m.protected_effect.direct_actions,
                                "Resource": m.protected_effect.store.table})
+        for name in sorted(self.scenarios & ESCAPE_GRANTS.keys()):
+            statements.append({"Effect": "Allow", "Sid": name,
+                               "Kinds": sorted(k.value for k in ESCAPE_GRANTS[name])})
         return {
             "backend": self.name,
             "ecs": {"service": m.runtime.service, "task_definition_revision": self.w.revision,
@@ -223,11 +232,18 @@ class SimulatedBackend(Backend):
         bypass = "bypass_direct_write" in self.scenarios
         return {a: bypass for a in self.manifest.protected_effect.direct_actions}
 
+    def escape_actions_allowed(self, actions: list[EscapeAction]) -> dict[str, bool | None]:
+        granted: set[EscapeKind] = set()
+        for name in self.scenarios & ESCAPE_GRANTS.keys():
+            granted |= ESCAPE_GRANTS[name]
+        return {a.label: a.kind in granted for a in actions}
+
     def containment_prestaged(self) -> tuple[bool, str]:
         if self.mechanism == ContainmentMechanism.LOCAL_FLAG:
             return False, "A worker-local flag is not an enforcement point outside the process."
         return True, (f"{self.mechanism.value} for {self.agent_role} on "
-                      f"{self.manifest.tool_gateway.write_route} is pre-staged.")
+                      f"{self.manifest.tool_gateway.write_route} can be applied to the agent "
+                      "principal only.")
 
     # ------------------------------------------------------------------ containment
     def _request_policy(self, deny: bool) -> None:

@@ -1,10 +1,16 @@
-"""Static checks: evidence levels ``configured`` and ``boundary_assessed``."""
+"""Static checks: evidence levels ``configured`` and ``boundary_assessed``.
+
+Includes Claim 3 (the agent cannot undo or outrun its containment), which needs no
+disruptive test.
+"""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 
 from haltai.backends.base import Backend
+from haltai.escape import EscapeAssessment, escape_catalogue, find_escape_paths
+from haltai.manifest import ContainmentMechanism
 from haltai.models import AssessmentLimitation, Evidence, EvidenceLevel, EvidenceType
 
 
@@ -14,6 +20,8 @@ class StaticCheckResult:
     limitations: list[AssessmentLimitation] = field(default_factory=list)
     bypass_paths: list[str] = field(default_factory=list)
     shared_identity: list[str] = field(default_factory=list)
+    escape: EscapeAssessment = field(default_factory=EscapeAssessment)
+    escape_evidence: list[Evidence] = field(default_factory=list)
 
     @property
     def caps(self) -> list[str]:
@@ -25,7 +33,21 @@ class StaticCheckResult:
         if self.shared_identity:
             caps.append("Agent role is shared with other workloads, so selective enforcement "
                         "is unsafe: " + ", ".join(self.shared_identity))
+        if self.escape.paths:
+            caps.append("Agent role can undo or route around containment: "
+                        + "; ".join(self.escape.paths))
         return caps
+
+
+ACTIVATION_NOTES = {
+    ContainmentMechanism.GATEWAY_RESOURCE_POLICY_DENY: (
+        "Containment is applied by rewriting the gateway resource policy and redeploying "
+        "the whole stage at activation. It is not a pre-staged toggle, and the redeploy "
+        "touches every route on the stage."),
+    ContainmentMechanism.IAM_INLINE_DENY: (
+        "Containment is applied by adding an inline policy to the agent role at "
+        "activation. It is not a pre-staged toggle."),
+}
 
 
 def run_static_checks(backend: Backend) -> StaticCheckResult:
@@ -72,8 +94,36 @@ def run_static_checks(backend: Backend) -> StaticCheckResult:
             source=f"{backend.name}:containment_prestaged"))
     else:
         out.limitations.append(AssessmentLimitation(field="containment_policy.mechanism",
-                                                    reason=detail))
-    # 4. Collateral probe must be observable on real backends
+                                                    reason=detail, blocking=True))
+    note = ACTIVATION_NOTES.get(m.containment_policy.mechanism)
+    if note:
+        out.limitations.append(AssessmentLimitation(field="containment_policy.mechanism",
+                                                    reason=note))
+    pending = backend.pending_gateway_changes()
+    if pending is None:
+        out.limitations.append(AssessmentLimitation(
+            field="tool_gateway.stage",
+            reason="Could not compare the API with the deployed stage. Activation redeploys "
+                   "the stage and would publish any undeployed change."))
+    elif pending:
+        out.limitations.append(AssessmentLimitation(
+            field="tool_gateway.stage", blocking=True,
+            reason="Activation redeploys the stage and would also publish these undeployed "
+                   "changes: " + "; ".join(pending)))
+
+    # 4. Claim 3: the agent cannot undo or outrun containment
+    catalogue = escape_catalogue(m, m.region)
+    out.escape = find_escape_paths(catalogue, backend.escape_actions_allowed(catalogue))
+    if out.escape.evaluated and not out.escape.paths:
+        out.escape_evidence.append(Evidence(
+            type=EvidenceType.INSPECTED_CONFIGURATION, level=EvidenceLevel.BOUNDARY_ASSESSED,
+            description=(f"Agent role cannot perform {out.escape.evaluated} of "
+                         f"{len(catalogue)} checked actions that would lift containment, "
+                         "escalate its own permissions, switch identity or start compute "
+                         "under another role."),
+            observed_at=backend.now(), source=f"{backend.name}:policy_simulation",
+            data={"actions": [a.label for a in catalogue], "unknown": out.escape.unknown}))
+    # 5. Collateral probe must be observable on real backends
     if backend.is_real and not m.collateral_probe.url:
         out.limitations.append(AssessmentLimitation(
             field="collateral_probe.url",

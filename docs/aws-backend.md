@@ -33,6 +33,14 @@ haltai rollback --confirm     # if a drill was interrupted
 
 Both changes are eventually consistent, which is why HaltAI measures the time to denial instead of assuming it.
 
+Neither is a pre-staged toggle: each reconfigures the deployment at activation, and `haltai check` says so. Stage 1 of the roadmap measures a pre-staged alternative.
+
+`haltai check` also guards activation:
+
+- **Leftover containment.** If the `HaltAIContainment` statement or inline policy already exists, the check is blocking. Containment may be active for a real reason, and a drill would remove it in its rollback. Check first, then run `haltai rollback --confirm`.
+- **Undeployed gateway changes.** The gateway mechanism redeploys the stage, which publishes every undeployed change on the API. HaltAI compares routes, methods and authorization types between the API and the deployed stage, and blocks if they differ. Integration changes are not compared. If the comparison fails, it is reported as a limitation.
+- **Claim 3.** Policy simulation of the escape catalogue in [`claims.md`](claims.md) for the agent role. Needs `iam:SimulatePrincipalPolicy`, already in the read-only list below.
+
 ## Operator role permissions
 
 Keep the operator role separate from the agent role (roadmap section 5).
@@ -45,7 +53,7 @@ ecs:DescribeServices, ecs:DescribeTaskDefinition, ecs:ListServices, ecs:ListTask
 iam:GetRole, iam:ListRolePolicies, iam:GetRolePolicy, iam:ListAttachedRolePolicies,
 iam:SimulatePrincipalPolicy
 lambda:ListFunctions
-apigateway:GET
+apigateway:GET                     (includes stage, deployment and resource reads)
 sqs:GetQueueAttributes
 dynamodb:DescribeTable, dynamodb:Scan (marker table), dynamodb:GetItem (probe results table)
 ```

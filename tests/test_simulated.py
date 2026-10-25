@@ -14,7 +14,8 @@ from haltai.scenarios import SCENARIOS
 EXAMPLE = Path(__file__).parent.parent / "examples" / "deployment.yaml"
 
 
-def run(scenarios: list[str], drill: DrillSettings | None = None, claims=("1", "2"), seed=7):
+def run(scenarios: list[str], drill: DrillSettings | None = None, claims=("1", "2", "3"),
+        seed=7):
     cfg = HaltAIConfig()
     cfg.simulation.seed = seed
     b = make_backend(cfg, load_manifest(EXAMPLE), scenarios)
@@ -25,9 +26,10 @@ def run(scenarios: list[str], drill: DrillSettings | None = None, claims=("1", "
 def test_scenario_matrix(name):
     s = SCENARIOS[name]
     _, r = run([name])
-    c1, c2 = r.claims
+    c1, c2, c3 = r.claims
     assert c1.result == s.claim1, c1.rationale
     assert c2.result == s.claim2, c2.rationale
+    assert c3.result == s.claim3, c3.rationale
     assert bool(r.collateral_impact) == s.collateral_impact
     assert any(c.residual_work_items for c in r.claims) == s.residual_exposure
     assert (r.recovery_verified is not False) == s.recovery_verified
@@ -64,7 +66,21 @@ def test_budget_exceeded_aborts_and_says_so():
 
 def test_combined_scenarios():
     _, r = run(["bypass_direct_write", "local_flag_containment"])
-    assert [c.result.value for c in r.claims] == ["partial", "failed"]
+    assert [c.result.value for c in r.claims] == ["partial", "failed", "verified"]
+
+
+def test_claim3_is_static_and_does_not_activate():
+    b, r = run(["agent_can_lift_deny"], claims=("3",))
+    (c3,) = r.claims
+    assert c3.result.value == "failed"
+    assert not b.w.policy_changes  # no containment was requested
+    assert any("UpdateRestApiPolicy" in w for w in c3.rationale)
+
+
+def test_clean_claim3_is_boundary_assessed_only():
+    _, r = run([], claims=("3",))
+    (c3,) = r.claims
+    assert {e.level.value for e in c3.evidence} == {"boundary_assessed"}
 
 
 def test_markdown_report_mentions_simulation_and_no_safe_badge():

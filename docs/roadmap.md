@@ -246,7 +246,7 @@ Every claim reports one result per effect (`verified`, `failed`, `partial`, `unk
 |---|---|---|
 | **1. New protected writes are denied** | After activation, new writes through the registered gateway are rejected within a measured interval. | Built; simulated |
 | **2. Restart and retry do not restore access** | While containment is active, worker restart, fresh task, redeploy and job retry stay denied. | Built; simulated |
-| **3. The agent cannot undo or outrun containment** *(proposed)* | The agent identity cannot remove or modify the containment control, assume an uncontained identity, create credentials, or start compute that performs the effect outside the control. | Stage 0 (static, `boundary_assessed`); Stage 1 with real policy simulation |
+| **3. The agent cannot undo or outrun containment** | The agent identity cannot remove or modify the containment control, assume an uncontained identity, create credentials, or start compute that performs the effect outside the control. | Built (static, `boundary_assessed`); simulated. Real policy simulation in Stage 1 |
 
 Claim 3 starts as a static check because it is cheap and needs no disruptive test. Any escape path found caps Claims 1 and 2 at `partial`, the same way a gateway bypass does today.
 
@@ -360,10 +360,10 @@ Workstreams needing an owner: customer discovery; threat model and claims; AWS t
 
 Immediate backlog, in order:
 
-1. `docs/threat-model.md`. *(Stage 0)*
-2. `docs/baseline-checklist.md`; score the simulated matrix with it. *(Stage 0)*
-3. Claim 3 static check, decision rules and scenarios `agent_can_lift_deny` and `agent_can_spawn_compute`. *(Stage 0)*
-4. Fix `containment_prestaged` to verify a real staged control; warn on undeployed API changes before a gateway activation. *(Stage 0)*
+1. ~~`docs/threat-model.md`~~ Done. *(Stage 0)*
+2. ~~`docs/baseline-checklist.md`; score the simulated matrix with it~~ Done (desk scoring; independent scoring in Stage 2). *(Stage 0)*
+3. ~~Claim 3 static check, decision rules and scenarios `agent_can_lift_deny` and `agent_can_spawn_compute`~~ Done. *(Stage 0)*
+4. ~~Make the pre-staging check honest; block on undeployed API changes before a gateway activation~~ Done: leftover containment and undeployed route or authorization changes block; activation by reconfiguration is reported as a limitation. *(Stage 0)*
 5. CDK testbed and stub worker; `cdk synth` in CI. *(Stage 0)*
 6. Obtain the non-production account (`eu-west-2` assumed); first one-repetition drill with rollback and recovery. *(Stage 1)*
 7. Full real failure matrix; three-mechanism latency comparison; baseline comparison. *(Stage 1)*

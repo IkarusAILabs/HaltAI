@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from haltai.models import AssessmentReport, Claim
+from haltai.models import AssessmentReport, Claim, ClaimId
 
 RESULT_LABEL = {
     "verified": "VERIFIED (within the tested scope)",
@@ -15,6 +15,8 @@ RESULT_LABEL = {
 
 
 def _interval_line(c: Claim) -> str:
+    if c.id == ClaimId.AGENT_CANNOT_UNDO:
+        return "n/a (policy simulation, no containment activated)"
     st = c.interval_stats
     if not st:
         return "not measured"
@@ -53,8 +55,9 @@ def render_markdown(r: AssessmentReport) -> str:
         lines += [f"## {c.id.value}", "", f"**Statement.** {c.statement}", "",
                   f"**Result.** {RESULT_LABEL[c.result.value]}", ""]
         lines += ["**Why.**", ""] + [f"- {w}" for w in c.rationale] + [""]
-        lines += [f"**Measured interval.** {_interval_line(c)}. This is an observation "
-                  "from this test, not a guarantee.", ""]
+        if c.id != ClaimId.AGENT_CANNOT_UNDO:
+            lines += [f"**Measured interval.** {_interval_line(c)}. This is an observation "
+                      "from this test, not a guarantee.", ""]
         lines += ["**Evidence.**", "", "| Level | Type | Description | Source |",
                   "|---|---|---|---|"]
         for e in c.evidence:
