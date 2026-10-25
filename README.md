@@ -8,6 +8,8 @@ HaltAI is open source and self-hosted. It does not build a new gateway, agent ru
 
 **Important: HaltAI is not yet an emergency stop you can use.** The v0.2 code is the *proof-testing* half: it rehearses containment and reports evidence, by default against a simulated deployment. The AWS backend has only been tested with mocks. The emergency commands (`prepare`, `halt`, `status`, `release`) are **planned, not implemented**. See the [roadmap](docs/roadmap.md).
 
+<img width="1344" height="1008" alt="What is HaltAI" src="https://github.com/user-attachments/assets/be068f08-b05d-4674-aaf0-0e329aa993d8" />
+
 ## Why is this needed?
 
 Stopping an AI process does not necessarily stop its effects.
@@ -22,6 +24,8 @@ Stopping an AI process does not necessarily stop its effects.
 | Stop new requests | An operation already accepted downstream may finish later. |
 
 So HaltAI never reports that an agent is "switched off". It reports what each control did, which effects were verified as stopped, and what may still continue.
+
+<img width="1344" height="1008" alt="How HaltAI works" src="https://github.com/user-attachments/assets/5eb45e1f-12c0-4c6f-99ec-f6a22644ef0b" />
 
 ## How it will work: prepare, halt, verify, release
 
@@ -146,6 +150,8 @@ HaltAI does **not**:
 - act as an LLM gateway or governance platform.
 
 A universal safety-valve **pattern** is the ambition. A universal guarantee is not.
+
+<img width="1344" height="1008" alt="Scope and limitations" src="https://github.com/user-attachments/assets/aa81bb42-ff62-40ee-bc74-37890ed68262" />
 
 ## Roadmap at a glance
 
