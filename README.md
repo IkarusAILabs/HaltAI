@@ -173,6 +173,7 @@ Full details and decision gates: [roadmap](docs/roadmap.md) and [v1 implementati
 | [AWS backend](docs/aws-backend.md) | AWS configuration, permissions and drill safeguards |
 | [Integration contract](docs/integration-contract.md) | What the test workload must record for verification |
 | [Implementation plan](docs/v1-implementation-plan.md) | Milestones and implementation status |
+| [Contributing](CONTRIBUTING.md) | Development setup, quality checks and contribution rules |
 
 ## License
 
