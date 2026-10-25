@@ -21,7 +21,7 @@ def test_init_check_drill_matrix(tmp_path, monkeypatch):
     res = runner.invoke(app, ["drill", "-q", "--out", "out"])
     assert res.exit_code == 0, res.output
     report = json.loads((tmp_path / "out" / "report.json").read_text())
-    assert [c["result"] for c in report["claims"]] == ["verified", "verified"]
+    assert [c["result"] for c in report["claims"]] == ["verified", "verified", "verified"]
 
     res = runner.invoke(app, ["matrix"])
     assert res.exit_code == 0, res.output
@@ -34,6 +34,14 @@ def test_check_reports_bypass_and_shared_identity(tmp_path, monkeypatch):
     res = runner.invoke(app, ["check", "-s", "bypass_direct_write", "-s", "shared_identity"])
     assert res.exit_code == 1
     assert "[bypass]" in res.output and "[blocking]" in res.output
+
+
+def test_check_reports_escape_paths(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    runner.invoke(app, ["init"])
+    res = runner.invoke(app, ["check", "-s", "agent_can_lift_deny"])
+    assert res.exit_code == 1
+    assert "[escape] apigateway:UpdateRestApiPolicy" in res.output
 
 
 def test_unknown_scenario_is_rejected(tmp_path, monkeypatch):

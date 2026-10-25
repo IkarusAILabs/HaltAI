@@ -2,7 +2,8 @@
 
 from datetime import UTC, datetime, timedelta
 
-from haltai.evaluate import evaluate_claim1, evaluate_claim2
+from haltai.escape import EscapeAssessment
+from haltai.evaluate import evaluate_claim1, evaluate_claim2, evaluate_claim3
 from haltai.models import (
     Claim1Repetition,
     Claim2Check,
@@ -132,3 +133,20 @@ def test_c2_residual_work_does_not_fail():
                                   initiated_at=T0, written_at=T0 + timedelta(seconds=30))]
     run.queued_at_activation = 3
     assert evaluate_claim2(run, [])[0] == ClaimResult.VERIFIED
+
+
+def test_c3_nothing_evaluated_is_unknown():
+    assert evaluate_claim3(EscapeAssessment(unknown=["a"]))[0] == ClaimResult.UNKNOWN
+
+
+def test_c3_escape_path_is_failed():
+    esc = EscapeAssessment(paths=["iam:PutRolePolicy on r: x"], unknown=["b"], evaluated=3)
+    assert evaluate_claim3(esc)[0] == ClaimResult.FAILED
+
+
+def test_c3_some_not_evaluated_is_partial():
+    assert evaluate_claim3(EscapeAssessment(unknown=["b"], evaluated=3))[0] == ClaimResult.PARTIAL
+
+
+def test_c3_all_denied_is_verified():
+    assert evaluate_claim3(EscapeAssessment(evaluated=12))[0] == ClaimResult.VERIFIED

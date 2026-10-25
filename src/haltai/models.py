@@ -47,6 +47,7 @@ class Evidence(BaseModel):
 class ClaimId(StrEnum):
     NEW_WRITES_DENIED = "new_protected_writes_denied"
     RESTART_RETRY_NO_RESTORE = "restart_retry_do_not_restore_access"
+    AGENT_CANNOT_UNDO = "agent_cannot_undo_or_outrun_containment"
 
 
 CLAIM_STATEMENTS: dict[ClaimId, str] = {
@@ -57,6 +58,10 @@ CLAIM_STATEMENTS: dict[ClaimId, str] = {
     ClaimId.RESTART_RETRY_NO_RESTORE: (
         "When a worker restarts or a queued job is retried, the protected write remains "
         "denied while containment remains active."
+    ),
+    ClaimId.AGENT_CANNOT_UNDO: (
+        "The agent identity cannot remove or weaken the containment control, grant itself "
+        "new permissions, act as an uncovered identity, or start compute under another role."
     ),
 }
 

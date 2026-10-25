@@ -1,6 +1,6 @@
 """Failure scenarios for the simulated backend, with the results HaltAI must report.
 
-Each scenario maps to a deliberate failure condition from the roadmap (section 7).
+Each scenario maps to a deliberate failure condition from the roadmap.
 ``haltai matrix`` runs all of them and compares actual against expected results.
 """
 
@@ -19,6 +19,7 @@ class Scenario:
     description: str
     claim1: ClaimResult
     claim2: ClaimResult
+    claim3: ClaimResult = ClaimResult.VERIFIED
     collateral_impact: bool = False
     residual_exposure: bool = False
     recovery_verified: bool = True
@@ -67,6 +68,16 @@ SCENARIOS: dict[str, Scenario] = {
             "no_recovery",
             "Rollback never takes effect; the drill must stop and say so.",
             P, U, recovery_verified=False,
+        ),
+        Scenario(
+            "agent_can_lift_deny",
+            "The agent role may edit the gateway policy and its own IAM policies.",
+            P, P, claim3=F,
+        ),
+        Scenario(
+            "agent_can_spawn_compute",
+            "The agent role may pass another role to new compute it starts.",
+            P, P, claim3=F,
         ),
     ]
 }

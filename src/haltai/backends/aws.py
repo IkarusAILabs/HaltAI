@@ -22,6 +22,7 @@ from typing import Any
 from haltai.backends.base import Backend, BackendError
 from haltai.config import AwsSettings, DrillSettings
 from haltai.contract import principal_role_arn
+from haltai.escape import EscapeAction
 from haltai.manifest import ContainmentMechanism, DeploymentManifest
 from haltai.models import Marker, ProbeOutcome, ProbeStatus, ProbeVia
 
@@ -193,6 +194,24 @@ class AwsBackend(Backend):
         return {r["EvalActionName"]: r["EvalDecision"] == "allowed"
                 for r in resp["EvaluationResults"]}
 
+    def escape_actions_allowed(self, actions: list[EscapeAction]) -> dict[str, bool | None]:
+        by_resource: dict[str, list[EscapeAction]] = {}
+        for a in actions:
+            by_resource.setdefault(a.resource, []).append(a)
+        out: dict[str, bool | None] = {}
+        for resource, group in by_resource.items():
+            try:
+                resp = self.client("iam").simulate_principal_policy(
+                    PolicySourceArn=self.manifest.identity.role_arn,
+                    ActionNames=[a.action for a in group], ResourceArns=[resource])
+                decided = {r["EvalActionName"]: r["EvalDecision"] == "allowed"
+                           for r in resp["EvaluationResults"]}
+            except Exception:  # noqa: BLE001 - not evaluated is reported, never a pass
+                decided = {}
+            for a in group:
+                out[a.label] = decided.get(a.action)
+        return out
+
     def containment_prestaged(self) -> tuple[bool, str]:
         mech = self.manifest.containment_policy.mechanism
         try:
@@ -200,16 +219,64 @@ class AwsBackend(Backend):
                 rest_id = self.manifest.tool_gateway.rest_api_id
                 if not rest_id:
                     return False, "tool_gateway.rest_api_id is not set."
-                self.client("apigateway").get_rest_api(restApiId=rest_id)
+                raw = self.client("apigateway").get_rest_api(restApiId=rest_id).get("policy")
+                if any(s.get("Sid") == SID for s in _parse_policy(raw).get("Statement", [])):
+                    return False, (f"Statement {SID} is already in the resource policy: "
+                                   "containment is active or a drill was interrupted. "
+                                   "Run `haltai rollback --confirm` after checking.")
                 return True, (f"Resource-policy Deny for {self.manifest.identity.role_arn} on "
                               f"{self._execute_api_arn()} can be applied (API found).")
             if mech == ContainmentMechanism.IAM_INLINE_DENY:
-                self.client("iam").get_role(RoleName=self.role_name)
+                iam = self.client("iam")
+                iam.get_role(RoleName=self.role_name)
+                if INLINE_POLICY in iam.list_role_policies(RoleName=self.role_name)["PolicyNames"]:
+                    return False, (f"Inline policy {INLINE_POLICY} already exists on "
+                                   f"{self.role_name}: containment is active or a drill was "
+                                   "interrupted. Run `haltai rollback --confirm` after checking.")
                 return True, (f"Inline Deny {INLINE_POLICY} on role {self.role_name} for "
                               f"{self._execute_api_arn()} can be applied (role found).")
         except Exception as exc:  # noqa: BLE001
             return False, f"Containment target not reachable: {exc!r}"
         return False, "A worker-local flag cannot be enforced or verified by HaltAI on AWS."
+
+    def pending_gateway_changes(self) -> list[str] | None:
+        """Compare the API's working copy with the stage's deployment.
+
+        Activating the gateway mechanism redeploys the stage, which publishes every
+        undeployed change. Only routes, methods and authorization types are compared;
+        integration changes are not visible here.
+        """
+        mech = self.manifest.containment_policy.mechanism
+        if mech != ContainmentMechanism.GATEWAY_RESOURCE_POLICY_DENY:
+            return []
+        apigw = self.client("apigateway")
+        gw = self.manifest.tool_gateway
+        try:
+            stage = apigw.get_stage(restApiId=gw.rest_api_id, stageName=gw.stage)
+            dep = apigw.get_deployment(restApiId=gw.rest_api_id,
+                                       deploymentId=stage["deploymentId"], embed=["apisummary"])
+            summary = dep.get("apiSummary")
+            if summary is None:
+                return None
+            deployed = {(path, verb): (v or {}).get("authorizationType")
+                        for path, verbs in summary.items() for verb, v in verbs.items()}
+            working: dict[tuple[str, str], str | None] = {}
+            for page in apigw.get_paginator("get_resources").paginate(
+                    restApiId=gw.rest_api_id, embed=["methods"]):
+                for item in page["items"]:
+                    for verb, v in item.get("resourceMethods", {}).items():
+                        working[(item["path"], verb)] = (v or {}).get("authorizationType")
+        except Exception:  # noqa: BLE001
+            return None
+        changes = [f"{verb} {path} added"
+                   for path, verb in sorted(working.keys() - deployed.keys())]
+        changes += [f"{verb} {path} removed"
+                    for path, verb in sorted(deployed.keys() - working.keys())]
+        for path, verb in sorted(working.keys() & deployed.keys()):
+            before, after = deployed[(path, verb)], working[(path, verb)]
+            if before != after:
+                changes.append(f"{verb} {path} authorization {before} -> {after}")
+        return changes
 
     # ------------------------------------------------------------------ containment
     def _set_gateway_deny(self, on: bool) -> None:

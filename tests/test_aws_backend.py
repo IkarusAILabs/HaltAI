@@ -108,6 +108,59 @@ def test_direct_effect_uses_policy_simulation(world):
     assert kwargs["ResourceArns"][0].endswith(":table/haltai-markers")
 
 
+def test_escape_actions_grouped_by_resource_and_failures_unknown(world):
+    b, _ = world
+    from haltai.escape import escape_catalogue
+
+    cat = escape_catalogue(b.manifest, REGION)
+    iam = MagicMock()
+
+    def simulate(PolicySourceArn, ActionNames, ResourceArns):  # noqa: N803 - boto3 names
+        assert PolicySourceArn == ROLE and len(ResourceArns) == 1
+        if ResourceArns[0] == ROLE:
+            raise RuntimeError("AccessDenied")
+        return {"EvaluationResults": [
+            {"EvalActionName": a, "EvalDecision": "allowed" if a == "sts:AssumeRole"
+             else "implicitDeny"} for a in ActionNames]}
+
+    iam.simulate_principal_policy.side_effect = simulate
+    b._clients["iam"] = iam
+    out = b.escape_actions_allowed(cat)
+    assert out["sts:AssumeRole on *"] is True
+    assert out[f"iam:PutRolePolicy on {ROLE}"] is None
+    assert out["iam:PassRole on *"] is False
+
+
+def test_prestaged_refuses_leftover_containment(world):
+    b, _ = world
+    b.activate_containment()
+    ok, detail = b.containment_prestaged()
+    assert not ok and "rollback" in detail
+    b.rollback_containment()
+    assert b.containment_prestaged()[0]
+
+
+def test_pending_gateway_changes_compares_working_copy_with_stage(world):
+    b, _ = world
+    apigw = MagicMock()
+    apigw.get_stage.return_value = {"deploymentId": "d1"}
+    apigw.get_deployment.return_value = {"apiSummary": {
+        "/tools/synthetic_write": {"POST": {"authorizationType": "AWS_IAM"}},
+        "/old": {"GET": {"authorizationType": "NONE"}}}}
+    apigw.get_paginator.return_value.paginate.return_value = [{"items": [
+        {"path": "/tools/synthetic_write", "resourceMethods": {
+            "POST": {"authorizationType": "NONE"}}},
+        {"path": "/new", "resourceMethods": {"GET": {"authorizationType": "AWS_IAM"}}}]}]
+    b._clients["apigateway"] = apigw
+    assert b.pending_gateway_changes() == [
+        "GET /new added", "GET /old removed",
+        "POST /tools/synthetic_write authorization AWS_IAM -> NONE"]
+    apigw.get_deployment.return_value = {}
+    assert b.pending_gateway_changes() is None
+    b.manifest.containment_policy.mechanism = ContainmentMechanism.IAM_INLINE_DENY
+    assert b.pending_gateway_changes() == []
+
+
 def test_gateway_deny_activation_and_rollback(world):
     b, s = world
     apigw = s.client("apigateway")

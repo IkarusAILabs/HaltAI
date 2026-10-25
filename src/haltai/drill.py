@@ -1,5 +1,7 @@
 """Drill engine: runs Claim 1 and Claim 2 procedures against any backend.
 
+Claim 3 is assessed from static checks and needs no drill.
+
 Every activation is paired with a rollback in ``finally``. If recovery cannot be
 verified, the drill stops instead of disrupting the deployment further.
 """
@@ -14,7 +16,7 @@ from haltai import __version__
 from haltai.backends.base import Backend
 from haltai.checks import StaticCheckResult, run_static_checks
 from haltai.config import DrillSettings
-from haltai.evaluate import evaluate_claim1, evaluate_claim2
+from haltai.evaluate import evaluate_claim1, evaluate_claim2, evaluate_claim3
 from haltai.fingerprint import REVALIDATION_TRIGGERS, fingerprint
 from haltai.manifest import check_prerequisites
 from haltai.models import (
@@ -309,6 +311,23 @@ def _claim2(run: Claim2Run, static: StaticCheckResult, fp: str, drill: DrillEngi
         revalidation_triggers=REVALIDATION_TRIGGERS)
 
 
+def _claim3(static: StaticCheckResult, fp: str, drill: DrillEngine) -> Claim:
+    m = drill.m
+    result, why = evaluate_claim3(static.escape)
+    return Claim(
+        id=ClaimId.AGENT_CANNOT_UNDO, statement=CLAIM_STATEMENTS[ClaimId.AGENT_CANNOT_UNDO],
+        deployment_fingerprint=fp, protected_effect=m.protected_effect.name,
+        declared_paths=m.declared_paths, assumptions=m.assumptions,
+        evidence=list(static.escape_evidence), result=result, rationale=why,
+        residual_exposure=[
+            "Policy simulation only: no escape attempt was made as the agent.",
+            "Identity and compute actions are simulated against '*'; grants scoped to "
+            "specific resources may not show up.",
+            "Credentials or roles the agent obtained outside its own role are not covered.",
+        ],
+        revalidation_triggers=REVALIDATION_TRIGGERS)
+
+
 def _residual(unsupported: list[str], residual: list[Marker], queued: int,
               downstream: list[str]) -> list[str]:
     out = []
@@ -355,6 +374,8 @@ def assess(backend: Backend, settings: DrillSettings, claims: set[str],
     except DrillAborted as exc:
         drill.aborted = str(exc)
         drill._event("drill_aborted", str(exc))
+    if "3" in claims:
+        out_claims.append(_claim3(static, fp, drill))
 
     if drill.aborted:
         limitations.append(AssessmentLimitation(field="drill", reason=drill.aborted,

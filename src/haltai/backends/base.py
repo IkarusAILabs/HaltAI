@@ -10,6 +10,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Any
 
+from haltai.escape import EscapeAction
 from haltai.manifest import DeploymentManifest
 from haltai.models import Marker, ProbeOutcome
 
@@ -49,8 +50,20 @@ class Backend(ABC):
         """For each direct action on the effect store: can the agent role do it?"""
 
     @abstractmethod
+    def escape_actions_allowed(self, actions: list[EscapeAction]) -> dict[str, bool | None]:
+        """Claim 3: for each action, can the agent role perform it? None if not evaluated."""
+
+    @abstractmethod
     def containment_prestaged(self) -> tuple[bool, str]:
         """Can the containment mechanism be applied to the agent principal only?"""
+
+    def pending_gateway_changes(self) -> list[str] | None:
+        """Gateway changes that activation would publish as a side effect.
+
+        Empty when there are none or the mechanism does not redeploy the gateway;
+        None when they could not be compared.
+        """
+        return []
 
     # ---- containment -------------------------------------------------------------
     @abstractmethod
