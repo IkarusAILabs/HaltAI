@@ -64,8 +64,22 @@ def escape_catalogue(m: DeploymentManifest, region: str) -> list[EscapeAction]:
     for action in ("iam:PutRolePolicy", "iam:AttachRolePolicy"):
         out.append(EscapeAction(action, role, EscapeKind.SELF_ESCALATION,
                                 "could grant itself new permissions or overwrite the deny"))
+    for action, why in (
+        ("iam:CreatePolicyVersion", "could add permissions to an attached customer-managed policy"),
+        ("iam:SetDefaultPolicyVersion", "could activate a more permissive attached policy version"),
+    ):
+        out.append(EscapeAction(action, WILDCARD, EscapeKind.SELF_ESCALATION, why))
+    for action, why in (
+        ("iam:DeleteRolePermissionsBoundary", "could remove the role's permissions boundary"),
+        ("iam:PutRolePermissionsBoundary", "could replace the role's permissions boundary"),
+    ):
+        out.append(EscapeAction(action, role, EscapeKind.LIFT_CONTAINMENT, why))
     for action, why in (("sts:AssumeRole", "could act as a role the containment does not cover"),
-                        ("iam:CreateAccessKey", "could mint long-lived keys for another user")):
+                        ("iam:CreateAccessKey", "could mint long-lived keys for another user"),
+                        ("iam:UpdateAssumeRolePolicy", "could change which principal can assume the role"),
+                        ("lambda:UpdateFunctionCode", "could run code in existing compute with another role"),
+                        ("lambda:UpdateFunctionConfiguration", "could change existing compute using another role"),
+                        ("ecs:UpdateService", "could run a task definition using another role")):
         out.append(EscapeAction(action, WILDCARD, EscapeKind.OTHER_IDENTITY, why))
     for action in (PASS_ROLE, *COMPUTE_ACTIONS):
         out.append(EscapeAction(action, WILDCARD, EscapeKind.NEW_COMPUTE,

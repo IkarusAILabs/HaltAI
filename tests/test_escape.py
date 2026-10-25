@@ -39,3 +39,23 @@ def test_missing_decisions_are_unknown_not_denied():
     cat = catalogue()
     res = find_escape_paths(cat, {cat[0].label: False})
     assert res.evaluated == 1 and len(res.unknown) == len(cat) - 1 and not res.paths
+
+
+def test_existing_aws_resources_are_escape_paths_without_pass_role():
+    cat = catalogue()
+    expected = {
+        "iam:CreatePolicyVersion": EscapeKind.SELF_ESCALATION,
+        "iam:SetDefaultPolicyVersion": EscapeKind.SELF_ESCALATION,
+        "iam:DeleteRolePermissionsBoundary": EscapeKind.LIFT_CONTAINMENT,
+        "iam:PutRolePermissionsBoundary": EscapeKind.LIFT_CONTAINMENT,
+        "iam:UpdateAssumeRolePolicy": EscapeKind.OTHER_IDENTITY,
+        "lambda:UpdateFunctionCode": EscapeKind.OTHER_IDENTITY,
+        "lambda:UpdateFunctionConfiguration": EscapeKind.OTHER_IDENTITY,
+        "ecs:UpdateService": EscapeKind.OTHER_IDENTITY,
+    }
+    actions = {action.action: action for action in cat}
+    assert {name: actions[name].kind for name in expected} == expected
+    decisions = {action.label: action.action in expected for action in cat}
+    paths = find_escape_paths(cat, decisions).paths
+    assert len(paths) == len(expected)
+    assert all(any(action in path for path in paths) for action in expected)

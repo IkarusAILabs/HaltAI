@@ -68,11 +68,16 @@ If recovery fails, the drill stops.
 |---|---|---|
 | Lift containment (gateway mechanism) | `apigateway:UpdateRestApiPolicy`, `apigateway:PATCH`, `apigateway:POST` (deployments) | the bound REST API |
 | Lift containment (IAM mechanism) | `iam:DeleteRolePolicy` | the agent role |
+| Lift containment | `iam:DeleteRolePermissionsBoundary`, `iam:PutRolePermissionsBoundary` | the agent role |
 | Self-escalation | `iam:PutRolePolicy`, `iam:AttachRolePolicy` | the agent role |
+| Self-escalation | `iam:CreatePolicyVersion`, `iam:SetDefaultPolicyVersion` | `*` |
 | Other identity | `sts:AssumeRole`, `iam:CreateAccessKey` | `*` |
+| Other identity | `iam:UpdateAssumeRolePolicy` | the agent role |
+| Existing compute under another role | `lambda:UpdateFunctionCode`, `lambda:UpdateFunctionConfiguration`, `ecs:UpdateService` | `*` |
 | New compute under another role | `iam:PassRole` **and** any of `ecs:RunTask`, `ecs:RegisterTaskDefinition`, `lambda:CreateFunction`, `ec2:RunInstances` | `*` |
 
 Creating compute alone is not an escape: compute that runs as the agent role is still covered by a role-scoped deny. It becomes one only with `iam:PassRole`.
+Updating existing compute can use a role already assigned to that resource, so those actions are assessed as individual escape paths without `iam:PassRole`. The policy-version actions cover attached customer-managed policies. See the [AWS privilege-escalation methods reference](https://rhinosecuritylabs.com/aws/aws-privilege-escalation-methods-mitigation/).
 
 **Decision rules (in order).**
 
