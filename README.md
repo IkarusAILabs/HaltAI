@@ -77,7 +77,12 @@ haltai matrix
 The commands:
 
 - `haltai init` creates example `haltai.yaml` and `deployment.yaml` configuration files.
-- `haltai check` runs configuration and prerequisite checks.
+- `haltai check` runs configuration and prerequisite checks (supports `--json` for machine-readable output).
+
+  Exit codes for `haltai check`:
+  - `0` = no blocking issues;
+  - `1` = blocking limitation, bypass or escape path found;
+  - `2` = manifest not found.
 - `haltai drill` runs the configured containment drills and writes reports under `reports/`.
 - `haltai matrix` runs the known failure scenarios and checks whether HaltAI reports the expected outcomes.
 
