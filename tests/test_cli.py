@@ -75,3 +75,41 @@ def test_aws_drill_refuses_wrong_account(tmp_path, monkeypatch):
     res = runner.invoke(app, ["drill", "--confirm"])
     assert res.exit_code == 3
     assert "does not match" in res.output
+
+
+def test_check_json_output_clean_run(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    runner.invoke(app, ["init"])
+    res = runner.invoke(app, ["check", "--json"])
+    assert res.exit_code == 0, res.output
+    data = json.loads(res.output)
+    assert "evidence" in data
+    assert "limitations" in data
+    assert "bypass_paths" in data
+    assert "escape_paths" in data
+    assert "escape_not_evaluated" in data
+    assert len(data["evidence"]) > 0
+    assert data["bypass_paths"] == []
+    assert data["escape_paths"] == []
+
+
+def test_check_json_output_with_escape_scenario(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    runner.invoke(app, ["init"])
+    res = runner.invoke(app, ["check", "--json", "-s", "agent_can_lift_deny"])
+    assert res.exit_code == 1
+    data = json.loads(res.output)
+    assert any("UpdateRestApiPolicy" in p for p in data["escape_paths"])
+    assert "blocking" in data["limitations"][0]
+
+
+def test_check_json_output_with_bypass_and_blocking_limitation(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    runner.invoke(app, ["init"])
+    res = runner.invoke(
+        app, ["check", "--json", "-s", "bypass_direct_write", "-s", "shared_identity"]
+    )
+    assert res.exit_code == 1
+    data = json.loads(res.output)
+    assert any(lim["blocking"] for lim in data["limitations"])
+    assert len(data["bypass_paths"]) > 0
