@@ -26,7 +26,7 @@ Autonomous AI activity inside a **declared environment** is causing harm, or is 
 
 HaltAI acts on an infrastructure boundary, not on each agent's code.
 
-- **Preferred:** a dedicated AWS account or organizational unit (OU) for agent workloads. HaltAI's operator identity sits outside it, and the identity lever is a service control policy (SCP) that nothing inside the account can detach.
+- **Preferred:** a dedicated AWS account or organizational unit (OU) for agent workloads. HaltAI's operator identity sits outside it, and the identity lever is a service control policy (SCP) that nothing inside the account can detach. In-account levers and the canary use a HaltAI **execution role inside the account**; see section 4.1.
 - **Accepted, weaker:** tagged resources and subnets inside a shared account. In-account identities may be able to change tags, policies or routes, so `prepare` must show they cannot.
 
 **Precondition:** agents run inside the declared boundary. Agents outside it, and unsegmented workloads, are a reported coverage gap, never silently included.
@@ -36,6 +36,7 @@ HaltAI acts on an infrastructure boundary, not on each agent's code.
 **Trusted** (a failure here invalidates results):
 
 - The HaltAI operator identity and the account it lives in. It is separate from every identity inside the boundary.
+- The HaltAI execution role inside the agent account, *provided its protections hold* (section 4.1). It is the one HaltAI identity inside the boundary.
 - The cloud control plane (IAM, Organizations, VPC, ECS, Lambda, EventBridge, SQS, API Gateway) behaving as documented, including eventual consistency.
 - The pre-staged controls created by `prepare`, and the integrity of HaltAI's own configuration.
 - HaltAI's canary probe, which runs with an agent identity in agent subnets using HaltAI's own image. It is trusted to report what that identity and network path can still do.
@@ -48,6 +49,23 @@ HaltAI acts on an infrastructure boundary, not on each agent's code.
 - Any resource, path or credential not covered by the declaration.
 - Anything an agent says about its own state. HaltAI never relies on it.
 - Today's drills only: probe results and markers written by the workload under the optional [integration contract](integration-contract.md). Evidence written by the workload is weaker than evidence HaltAI observes itself.
+
+### 4.1 The execution role inside the boundary
+
+ECS tasks, network ACL associations, Lambda concurrency, schedules and the canary can only be changed from inside the agent account. So one HaltAI identity, the **execution role**, must live there. It is exempt from the halt SCP, so that release keeps working, which means it is never contained itself. That exemption is only acceptable because of these protections, each checked by `prepare`; any gap is blocking:
+
+| Protection | Threat it addresses |
+|---|---|
+| Only the operator role can assume it (exact ARN in the trust policy) | An agent, or another in-account identity, takes over HaltAI's powers |
+| Only this role is exempt from the halt SCP | A broader exemption creates an uncontained path during a halt |
+| A standing protection SCP denies all other principals the ability to modify, delete, pass, assume or retag it and HaltAI-staged resources | An agent weakens or retargets the controls before or during a halt |
+| No workload runs as it | Agent code inherits HaltAI's permissions |
+| Least privilege: in-scope lever actions only; `iam:PassRole` only for in-scope agent roles (for the canary) | A stolen session can do more than halt and release |
+| Every use is logged to CloudTrail, and use outside HaltAI commands raises an alert | Misuse goes unnoticed |
+
+**Out of scope:** compromise of the operator role, or of the execution role through credentials obtained outside these paths. The trust boundary holds only while these protections hold.
+
+**Shared-account variant:** there is no protection SCP, so the execution role is protected only by IAM policies and Claim 3. This is weaker, and reports must say so.
 
 ## 5. Effects
 
@@ -86,8 +104,9 @@ Targets are thresholds for tests, not promises. Results always report the measur
 
 - A declared boundary with a named owner, environment and account.
 - A HaltAI operator identity outside the boundary, with only the permissions `prepare`, `halt` and `release` need, protected by strong authentication.
+- For the dedicated-account boundary: the ability to attach SCPs to the agent account or OU (from the management account or as a delegated administrator), and a HaltAI execution role in the agent account with the protections in section 4.1.
 - Dedicated identities for agent workloads, not shared with unrelated services. A shared identity is a blocking limitation for halt-agents.
-- No permission inside the boundary to change containment controls, tags used for scoping, or the operator identity (Claim 3).
+- No permission inside the boundary to change containment controls, tags used for scoping, the operator identity or the execution role (Claim 3).
 - A documented manual fallback and an out-of-band recovery path that does not run inside the boundary.
 - Logs that HaltAI can read to verify effects (VPC Flow Logs, CloudTrail).
 

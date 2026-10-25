@@ -44,7 +44,7 @@ Roadmap 0.3 made HaltAI the *proof-tester* first and deferred the *valve itself*
 2. **Verification without agent code needs a design.** Today's effect-level evidence relies on the integration contract: the worker records probe results and the gateway backend writes markers. "No code integration" removes that. HaltAI will instead probe **as the agent's identity and from the agent's network**, using a HaltAI-owned canary task, and read infrastructure evidence. The integration contract stays as *optional deep verification* (section 8).
 3. **Production halt has to be earned.** A break-glass tool must eventually work in production, but today's guards forbid production. `halt` stays limited to non-production until the Phase 4 safety gate passes (section 10).
 4. **Drill mode and halt mode behave differently.** Drills roll back automatically in `finally`. A real halt must *not* release automatically. Both modes share adapters and verification but have separate lifecycles.
-5. **The first boundary should be an AWS account, not a VPC alone.** A dedicated agent account (or organizational unit) gives the cleanest identity boundary: a pre-staged service control policy (SCP) applied from outside the account. It is also the hardest for the agent to reach (section 7).
+5. **The first boundary should be an AWS account, not a VPC alone.** A dedicated agent account (or organizational unit) gives the cleanest identity boundary: a pre-staged service control policy (SCP) applied from outside the account. It is also the hardest for the agent to reach. The in-account levers still need one HaltAI identity inside the boundary, and section 7.1 sets out its protections.
 6. **"No integration" still has a precondition.** Agents must run inside a declared, segmented boundary. That is an infrastructure requirement, not a developer one, and it is stated as a prerequisite rather than hidden.
 7. **Gates and dates are kept.** The strategy's lean phases are kept, with explicit gates and the 29 January 2027 decision review.
 
@@ -144,8 +144,33 @@ The default order for `halt` is identity, then network, then intake, then worklo
 
 **Approach A — declared agent environment (first).** Agents run in a boundary administrators control. HaltAI acts on the boundary without knowing each agent's internals.
 
-- **Recommended first boundary:** a dedicated AWS account (or organizational unit) for agent workloads. The HaltAI operator role lives *outside* it, for example in a security or delegated-administrator account, and the identity lever is an SCP. Nothing inside the account can detach that SCP.
+- **Recommended first boundary:** a dedicated AWS account (or organizational unit) for agent workloads, with the identity lever as a service control policy (SCP). Nothing inside the account can detach an SCP.
 - **Within a shared account:** in-scope resources are identified by tag (for example `haltai:scope=agents`) and by subnets. This is weaker, because in-account identities may be able to change tags and policies, and Claim 3 must show they can't.
+
+### 7.1 Two HaltAI identities
+
+Only part of a halt can be done from outside the boundary. Attaching an SCP works through AWS Organizations. Every other lever acts on resources inside the agent account: network ACL associations, ECS services, Lambda concurrency, rules and schedules, and the canary task, which ECS can only run in the account that owns the subnets and the agent role. HaltAI therefore uses two identities:
+
+| Identity | Lives in | Does |
+|---|---|---|
+| **Operator role** | A security or tooling account, outside the boundary | Authenticates the human operator; attaches and detaches the halt SCP (from the management account or as a delegated administrator); assumes the execution role. |
+| **Execution role** | The agent account, **inside** the boundary | Applies and releases the in-account levers; runs the canary; reads state for `status`. |
+
+The execution role is the one HaltAI identity inside the boundary, so it is the most attractive target. `prepare` creates it with these protections and checks each of them, reporting any gap as **blocking**:
+
+1. **Trust:** only the operator role can assume it. The trust policy names that exact role ARN; it has no wildcards and no in-account principals.
+2. **Exempt from the halt SCP, and only it:** the halt SCP denies everything except calls by the execution role. Without the exception, a halt would also lock out the release. Being exempt means the execution role is never contained itself, which is why the other protections matter.
+3. **A standing protection SCP**, attached at all times, not only during a halt. It denies every principal except the execution role these actions on the execution role and on HaltAI-staged resources (tagged `haltai:managed=true`):
+   - modifying, deleting, passing or assuming them;
+   - changing their tags;
+   - changing their trust policies.
+4. **No workload runs as it.** No task definition, function or instance profile uses the execution role. This is checked the same way as today's dedicated-identity check.
+5. **Least privilege:** only the lever actions on in-scope resources, plus `ecs:RunTask` and `iam:PassRole` limited to in-scope agent roles for the canary. No broad IAM permissions.
+6. **Audited:** every assumption and action is logged to CloudTrail. Any use outside `prepare`, `drill`, `halt`, `status` or `release` is an alert.
+
+Claim 3 is extended to the boundary. No identity inside the boundary may be able to modify, assume or pass the execution role, change the protection SCP's targets, or retag HaltAI-staged resources.
+
+**Shared-account variant:** a halt SCP would hit the whole account, so the identity lever uses deny policies attached to agent roles instead. The execution role is protected only by IAM policies and Claim 3, with no protection SCP. This is weaker, and reports must say so.
 
 **Approach B — discovery of known cloud workloads (later).** Inventory supported runtimes, identities, queues and egress paths. Existing resources can't reliably be classified as "AI agents", so unknown or unsegmented workloads stay a reported coverage gap. No claim of universal discovery.
 
@@ -210,6 +235,7 @@ Claims 1–3, simulated backend with 11 scenarios, static checks with activation
 - Environment declaration schema (section 7) with validation and limitations reporting.
 - Simulated *environment* backend: account boundary, subnets, ECS service with autoscaling, Lambda with an event source, EventBridge schedule, SQS queue, an unrelated in-boundary service and an out-of-boundary service.
 - Reference AWS environment as IaC (CDK, Python): a dedicated agent account layout plus a shared-account variant. `cdk synth` runs in CI.
+- Execution-role design (section 7.1): trust policy, halt SCP exception, protection SCP, and the matching Claim 3 checks, designed together with the canary probe.
 - Update the threat model for the boundary and the levers.
 
 **Gate:** the boundary is fully declarable; the simulator models every lever and the new failure scenarios.
@@ -304,7 +330,7 @@ Workstreams needing an owner: boundary and adapters; verification and canary; op
 1. Environment declaration schema and validator. *(Phase 1)*
 2. Simulated environment backend and lever failure scenarios. *(Phase 1)*
 3. CDK reference environment (dedicated account + shared-account variant); `cdk synth` in CI. *(Phase 1)*
-4. Canary-probe design: a HaltAI-owned task run as the agent role in the agent subnets. *(Phase 1)*
+4. Canary-probe design: a HaltAI-owned task run as the agent role in the agent subnets, launched by the execution role (section 7.1). *(Phase 1)*
 5. `prepare` with Claim 3 on the boundary. *(Phase 2)*
 6. `halt` (halt-agents), `status`, `release` in simulation; then AWS adapters. *(Phase 2)*
 7. Non-production account; first real halt drill. *(Phase 3)*
