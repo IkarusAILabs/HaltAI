@@ -26,6 +26,7 @@ class EscapeKind(StrEnum):
     LIFT_CONTAINMENT = "lift_containment"
     SELF_ESCALATION = "self_escalation"
     OTHER_IDENTITY = "other_identity"
+    EXISTING_COMPUTE = "existing_compute"
     NEW_COMPUTE = "new_compute"
 
 
@@ -41,10 +42,15 @@ class EscapeAction:
         return f"{self.action} on {self.resource}"
 
 
-# Creating compute is only an escape when the agent can also hand it another role.
+# Compute changes are only escapes when the agent can also hand them another role.
 PASS_ROLE = "iam:PassRole"
-COMPUTE_ACTIONS = ("ecs:RunTask", "ecs:RegisterTaskDefinition", "lambda:CreateFunction",
-                   "ec2:RunInstances")
+COMPUTE_ACTIONS = (
+    "ecs:RunTask",
+    "ecs:RegisterTaskDefinition",
+    "lambda:CreateFunction",
+    "ec2:RunInstances",
+    "ecs:UpdateService",
+)
 
 
 def escape_catalogue(m: DeploymentManifest, region: str) -> list[EscapeAction]:
@@ -73,14 +79,18 @@ def escape_catalogue(m: DeploymentManifest, region: str) -> list[EscapeAction]:
         ("iam:DeleteRolePermissionsBoundary", "could remove the role's permissions boundary"),
         ("iam:PutRolePermissionsBoundary", "could replace the role's permissions boundary"),
     ):
-        out.append(EscapeAction(action, role, EscapeKind.LIFT_CONTAINMENT, why))
-    for action, why in (("sts:AssumeRole", "could act as a role the containment does not cover"),
-                        ("iam:CreateAccessKey", "could mint long-lived keys for another user"),
-                        ("iam:UpdateAssumeRolePolicy", "could change which principal can assume the role"),
-                        ("lambda:UpdateFunctionCode", "could run code in existing compute with another role"),
-                        ("lambda:UpdateFunctionConfiguration", "could change existing compute using another role"),
-                        ("ecs:UpdateService", "could run a task definition using another role")):
+        out.append(EscapeAction(action, role, EscapeKind.SELF_ESCALATION, why))
+    for action, why in (
+        ("sts:AssumeRole", "could act as a role the containment does not cover"),
+        ("iam:CreateAccessKey", "could mint long-lived keys for another user"),
+        ("iam:UpdateAssumeRolePolicy", "could change which principal can assume a role"),
+    ):
         out.append(EscapeAction(action, WILDCARD, EscapeKind.OTHER_IDENTITY, why))
+    for action, why in (
+        ("lambda:UpdateFunctionCode", "could run code in existing compute with another role"),
+        ("lambda:UpdateFunctionConfiguration", "could change existing compute using another role"),
+    ):
+        out.append(EscapeAction(action, WILDCARD, EscapeKind.EXISTING_COMPUTE, why))
     for action in (PASS_ROLE, *COMPUTE_ACTIONS):
         out.append(EscapeAction(action, WILDCARD, EscapeKind.NEW_COMPUTE,
                                 "could start compute that runs under another role"))
