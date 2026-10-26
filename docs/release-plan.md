@@ -149,6 +149,7 @@ In order of user evidence, not promised up front: EKS workloads, AgentCore sessi
 - [ ] Version bumped in `src/haltai/__init__.py` and `pyproject.toml`.
 - [ ] README status line and "roadmap at a glance" updated; no claim beyond what the release does.
 - [ ] Tag `vX.Y.Z` pushed; the release workflow publishes the GitHub release.
+- [ ] Contributors credited by handle in `CHANGELOG.md` and [CONTRIBUTORS.md](../CONTRIBUTORS.md).
 - [ ] Issues for the next release opened and labelled (`phase-N`).
 
 ## 5. Risks to this plan

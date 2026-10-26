@@ -180,6 +180,11 @@ Details, gates and the decision record: [roadmap](docs/roadmap.md). Release-by-r
 | [Integration contract](docs/integration-contract.md) | Optional in-workload evidence used by today's drills |
 | [v1 implementation plan](docs/v1-implementation-plan.md) | Historical v1 milestones (superseded by the roadmap) |
 | [Contributing](CONTRIBUTING.md) | Development setup, quality checks and contribution rules |
+| [Contributors](CONTRIBUTORS.md) | Who has contributed what |
+
+## Contributors
+
+Thanks to the community contributors who have already shaped HaltAI: [@chiragjangiir](https://github.com/chiragjangiir) (machine-readable `check --json` output, Python 3.14 CI, the contributor guide) and [@jay23606](https://github.com/jay23606) (more AWS privilege-escalation paths for Claim 3). Full credits: [CONTRIBUTORS.md](CONTRIBUTORS.md). New contributors are welcome; start with [CONTRIBUTING.md](CONTRIBUTING.md) and the [good first issues](https://github.com/IkarusAILabs/HaltAI/labels/good%20first%20issue).
 
 ## License
 
