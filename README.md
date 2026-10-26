@@ -179,6 +179,7 @@ Details, gates and the decision record: [roadmap](docs/roadmap.md). Release-by-r
 | [AWS backend](docs/aws-backend.md) | Today's AWS drill backend, permissions and safeguards |
 | [Integration contract](docs/integration-contract.md) | Optional in-workload evidence used by today's drills |
 | [v1 implementation plan](docs/v1-implementation-plan.md) | Historical v1 milestones (superseded by the roadmap) |
+| [Contributing](CONTRIBUTING.md) | Development setup, quality checks and contribution rules |
 
 ## License
 
