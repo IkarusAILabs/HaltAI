@@ -1,5 +1,7 @@
 # Agent integration contract (aws backend)
 
+> **Optional (roadmap v0.4).** Today's AWS drills use this contract to collect effect evidence from inside the workload. The planned break-glass commands **do not require it**: they verify through a HaltAI-owned canary probe running as the agent's identity, and through infrastructure evidence. Teams that want extra in-workload evidence can still implement it. Evidence the workload writes about itself is treated as weaker than evidence HaltAI observes directly (see the [threat model](threat-model.md)).
+
 HaltAI never relies on what the agent *says*. It observes outcomes through records the deployment writes as a side effect of doing real work. The simulated backend models these records internally. For the `aws` backend, the deployment needs three small additions. `haltai.contract` provides helpers for each.
 
 ## 1. Probe messages (agent worker)

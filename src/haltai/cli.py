@@ -99,27 +99,46 @@ def snapshot(config: str | None = ConfigOpt,
 @app.command()
 def check(config: str | None = ConfigOpt,
           scenario: list[str] = typer.Option(None, "--scenario", "-s",
-                                             help="Simulated failure scenario (repeatable)")
+                                             help="Simulated failure scenario (repeatable)"),
+          as_json: bool = typer.Option(False, "--json", help="Output results as JSON")
           ) -> None:
-    """Run static checks only (no containment): identity, bypass, pre-staging, escape."""
+    """Run static checks only (no containment): identity, bypass, pre-staging, escape.
+
+    Exit codes:
+      0 = no blocking issues;
+      1 = blocking limitation, bypass or escape path found;
+      2 = manifest not found.
+    """
     cfg, m = _load(config)
     b = make_backend(cfg, m, scenario or None)
     res = run_static_checks(b)
     lims = check_prerequisites(m) + res.limitations
-    typer.echo(f"Backend: {b.name}")
-    for e in res.evidence:
-        typer.secho(f"  [{e.level.value}] {e.description}", fg="green")
-    for e in res.escape_evidence:
-        typer.secho(f"  [{e.level.value}] {e.description}", fg="green")
-    for p in res.bypass_paths:
-        typer.secho(f"  [bypass] {p}", fg="yellow")
-    for p in res.escape.paths:
-        typer.secho(f"  [escape] {p}", fg="red")
-    for label in res.escape.unknown:
-        typer.secho(f"  [not evaluated] {label}", fg="yellow")
-    for lim in lims:
-        typer.secho(f"  [{'blocking' if lim.blocking else 'limitation'}] {lim.field}: "
-                    f"{lim.reason}", fg="red" if lim.blocking else "yellow")
+
+    if as_json:
+        data = {
+            "evidence": [e.model_dump(mode="json") for e in (res.evidence + res.escape_evidence)],
+            "limitations": [lim.model_dump(mode="json") for lim in lims],
+            "bypass_paths": res.bypass_paths,
+            "escape_paths": res.escape.paths,
+            "escape_not_evaluated": res.escape.unknown,
+        }
+        typer.echo(json.dumps(data, indent=2))
+    else:
+        typer.echo(f"Backend: {b.name}")
+        for e in res.evidence:
+            typer.secho(f"  [{e.level.value}] {e.description}", fg="green")
+        for e in res.escape_evidence:
+            typer.secho(f"  [{e.level.value}] {e.description}", fg="green")
+        for p in res.bypass_paths:
+            typer.secho(f"  [bypass] {p}", fg="yellow")
+        for p in res.escape.paths:
+            typer.secho(f"  [escape] {p}", fg="red")
+        for label in res.escape.unknown:
+            typer.secho(f"  [not evaluated] {label}", fg="yellow")
+        for lim in lims:
+            typer.secho(f"  [{'blocking' if lim.blocking else 'limitation'}] {lim.field}: "
+                        f"{lim.reason}", fg="red" if lim.blocking else "yellow")
+
     if any(lim.blocking for lim in lims) or res.bypass_paths or res.escape.paths:
         raise typer.Exit(1)
 

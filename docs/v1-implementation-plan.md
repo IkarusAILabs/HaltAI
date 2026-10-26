@@ -1,5 +1,7 @@
 # HaltAI v1 — Roadmap Review and Implementation Plan
 
+> **Historical.** This plan built the v0.2 proof-tester (drills, claims, simulated and AWS drill backends). Since roadmap v0.4 it is superseded by the break-glass plan in [roadmap.md](roadmap.md). It is kept as a record of what was built and why.
+
 **Status:** Draft for review · **Covers:** Roadmap Phase 1 (claim model and experiment design) and the minimal Phase 2 prototype · **Last updated:** 20 October 2026
 
 v1 means one thing: on one registered ECS deployment, HaltAI can test **Claim 1** (new protected writes are denied) and **Claim 2** (restart and retry do not restore write access), including the deliberate failure conditions, and produce a claim-level evidence report that can be compared with a baseline checklist.
