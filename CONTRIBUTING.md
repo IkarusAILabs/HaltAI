@@ -60,6 +60,12 @@ cd examples && haltai matrix
 
 ---
 
+## Credit
+
+Every merged contribution is credited by GitHub handle in [CONTRIBUTORS.md](CONTRIBUTORS.md) and in the release notes for the release it ships in. Reviews, bug reports, design input and drill feedback count too.
+
+---
+
 ## License
 
 HaltAI is licensed under Apache-2.0. By contributing, you agree that your contributions are licensed under the same terms (see [LICENSE](LICENSE)).
