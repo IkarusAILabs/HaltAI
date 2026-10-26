@@ -52,7 +52,14 @@ cd examples && haltai matrix
    - Define the new scenario in `src/haltai/scenarios.py` with its expected outcome across claims.
    - Implement the simulated backend behavior in `src/haltai/backends/simulated.py`.
    - Update `README.md` if the scenario is user-facing or introduces a new failure class.
+   - Add a row for the scenario to the scoring table in `docs/baseline-checklist.md`, rating both the checklist and HaltAI.
 3. **Pull request conventions:**
    - **Focused scope:** One change or bug fix per pull request.
    - **Regression tests:** Include automated tests for any behavior changes or bug fixes.
    - **Documentation:** Keep documentation, `--help` strings, and examples updated alongside code changes.
+
+---
+
+## License
+
+HaltAI is licensed under Apache-2.0. By contributing, you agree that your contributions are licensed under the same terms (see [LICENSE](LICENSE)).
