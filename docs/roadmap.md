@@ -265,7 +265,7 @@ Also: time to effective denial per lever (distribution and resolution), whether 
 
 ### Market validation (in parallel)
 - 10–15 interviews with teams running agents in AWS. Collect concrete emergency procedures, not stated interest.
-- Compare against ServiceNow AI Control Tower containment, AWS AgentCore controls, Microsoft agent identity, gateway controls, runbooks and AWS FIS.
+- Compare against ServiceNow AI Control Tower containment, AWS AgentCore controls, Microsoft agent identity, gateway controls, runbooks and AWS FIS; in-agent runtime enforcement (for example AgentSpec and guardrail frameworks); and cooperative kill switches (KILLBENCH, section 14).
 - Test the differentiators as hypotheses: no developer adoption needed, framework independence, break-glass independence, simple and auditable, declared-scope isolation.
 
 **Gate:** at least 3 teams share a concrete procedure; at least 2 agree to a supervised drill; at least 1 consequential gap remains after existing tools.
@@ -313,6 +313,7 @@ HaltAI does not claim to:
 ## 12. Metrics
 
 - Time to effective denial per lever (measured, with resolution).
+- Protected effects completed between the halt request and effective denial, per lever (canary probes, CloudTrail).
 - Share of levers reaching `effect_verified` in drills.
 - Escape paths found by `prepare`.
 - Restart, retry and autoscaling resilience while halted.
@@ -350,7 +351,25 @@ Workstreams needing an owner: boundary and adapters; verification and canary; op
 
 ------------------------------------------------------------------------
 
-## 14. Sources
+## 14. External research and comparators (reviewed 28 October 2026)
+
+**Closest research:** [KILLBENCH](https://arxiv.org/abs/2511.13725) (Lee, Kim and Park, [Findings of EMNLP 2026](https://aclanthology.org/2026.findings-emnlp.2454/)) benchmarks *external* kill switches for malicious web agents: four malicious-agent configurations, eight harmful scenarios, and prompt-style stop payloads delivered through the agent's environment. Those payloads work only if the agent responds to them. HaltAI's levers act whether or not the agent cooperates. KILLBENCH is a complementary baseline, not a competitor, and its web-agent results say nothing about identity, network or work-intake levers.
+
+A 2026 systematic review of agent safety enforcement ([Dantas et al.](https://arxiv.org/abs/2608.14590)) reports that agents route around blocked actions, so blocking most unsafe actions can still leave tasks unsafely completed. That supports coordinating several levers and the "never one overall stopped" rule.
+
+Items (none widens the product):
+
+- **R1 — Independent Claim 3 cross-check (Phase 2–3).** Run [PMapper](https://github.com/nccgroup/PMapper) (NCC Group) on the CDK reference environment and compare its privilege-escalation paths with HaltAI's escape-path catalogue. Any path PMapper finds and Claim 3 does not becomes a scenario or a documented limitation. PMapper is a test oracle only, never a dependency (AGPL-3.0).
+- **R2 — Cooperative versus non-cooperative stop (research, after the Phase 3 gate).** In the non-production boundary, send a KILLBENCH-style in-band stop signal to a test agent, then apply the levers. Score both on the section 12 metrics. HaltAI ships no prompt-based stop and no web-agent harness; this is an experiment, not a feature.
+- **R3 — Outcome wording.** Report KILLBENCH-comparable outcomes (stopped before the effect, after a partial effect, not stopped) only per lever and per effect, never as one overall success rate.
+- **R4 — Blueprint Alliance crosswalk (market validation).** Map HaltAI onto the response and kill-switch component of the Blueprint Alliance reference architecture, *Governing Agentic Execution* (the "How do I respond?" question), which SafeAI's crosswalk lists as out of its scope. Cite the public architecture only; Ikarus AI Labs is not a member, and the crosswalk implies no endorsement.
+- **R5 — Kubernetes venue (Phase 5 only).** The UK AI Security Institute's [ControlArena](https://github.com/UKGovernmentBEIS/control-arena) has a Kubernetes infrastructure setting, a possible research setting if EKS support is ever justified. No commitment before then.
+
+**Not adopted:** prompt- or environment-based kill switches, web-agent harnesses, malicious-behaviour detection, and in-agent enforcement. They conflict with "no agent code integration" and "acts on an operator's decision".
+
+------------------------------------------------------------------------
+
+## 15. Sources
 
 Platform behaviour varies by service version and configuration.
 
@@ -360,9 +379,11 @@ Platform behaviour varies by service version and configuration.
 - [AWS — AgentCore runtime security best practices](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-security-best-practices.html)
 - [Microsoft — Agent identity concepts](https://learn.microsoft.com/en-us/azure/foundry/agents/concepts/agent-identity)
 - [AWS Fault Injection Service](https://docs.aws.amazon.com/fis/latest/userguide/what-is.html)
+- [Lee, Kim and Park — KILLBENCH: A Benchmark for External AI Kill Switch Feasibility (EMNLP Findings 2026)](https://aclanthology.org/2026.findings-emnlp.2454/)
+- [Dantas et al. — Toward Safe LLM Agents: A Survey of Specification, Verification, and Enforcement](https://arxiv.org/abs/2608.14590)
 
 ------------------------------------------------------------------------
 
-## 15. Decision principle
+## 16. Decision principle
 
 Keep HaltAI small. Prepare the infrastructure controls in advance, make the emergency action simple, keep it out of the agent's reach, verify what actually stopped, and be honest about what remains outside the boundary.
