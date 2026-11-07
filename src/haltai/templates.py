@@ -101,3 +101,60 @@ unsupported_paths:
 downstream_side_effects:
   - None (synthetic table only)
 """
+
+ENVIRONMENT_TEMPLATE = """\
+# HaltAI environment declaration: the boundary `prepare`, `halt`, `status` and
+# `release` may act on (roadmap sections 5-7). Field reference: docs/environment.md.
+# Replace the example values with your own non-production resources.
+name: agents-sandbox
+environment: sandbox                 # production names are refused until roadmap Phase 4
+
+boundary:
+  kind: account                      # account (preferred) | ou | tagged
+  aws_account_id: "123456789012"     # the dedicated agent account
+  regions: [eu-west-2]
+  subnets: [subnet-0a1b2c3d4e5f60001, subnet-0a1b2c3d4e5f60002]
+
+operator:
+  # Outside the boundary: a security or tooling account.
+  role_arn: arn:aws:iam::999999999999:role/haltai-operator
+  # Inside the agent account; omit it and `prepare` creates it (roadmap 7.1).
+  execution_role_arn: arn:aws:iam::123456789012:role/haltai/haltai-execution
+
+levers:                              # levers per profile, applied in halt order
+  halt-agents: [identity, network, intake, workload]
+  isolate: [identity, network, intake, workload]
+
+identity:
+  roles: [arn:aws:iam::123456789012:role/agents/*]
+  revoke_sessions: true              # also deny sessions issued before the halt
+
+network:
+  model_endpoints: [bedrock-runtime.eu-west-2.amazonaws.com]
+  tool_endpoints: [https://tools.sandbox.example.internal/]
+
+workload:
+  ecs_services: [agents/research-agent]
+  lambda_functions: [summariser-agent]
+
+intake:
+  eventbridge_rules: [nightly-agent-run]
+  schedules: [agents/hourly-digest]
+  event_source_mappings: [9f8e7d6c-0000-4000-8000-000000000001]
+  sqs_queues: [https://sqs.eu-west-2.amazonaws.com/123456789012/agent-jobs]
+
+collateral:
+  in_boundary:                       # may be interrupted by the isolate profile
+    - name: metrics-exporter
+      url: null                      # e.g. https://metrics.sandbox.example.internal/health
+  out_of_boundary:                   # must never be interrupted
+    - name: billing-api
+      url: null
+
+recovery:
+  owners: [platform-oncall@example.com]
+  manual_fallback: docs/runbooks/agents-break-glass.md
+
+authorisation:
+  isolate_requires_two_approvers: true
+"""

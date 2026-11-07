@@ -80,13 +80,14 @@ haltai drill
 haltai matrix
 ```
 
-- `haltai init` creates example `haltai.yaml` and `deployment.yaml` files.
+- `haltai init` creates example `haltai.yaml`, `deployment.yaml` and `environment.yaml` files.
 - `haltai check` runs configuration, prerequisite and escape-path checks. It supports `--json`. Exit codes:
   - `0` = no blocking issues;
   - `1` = blocking limitation, bypass or escape path found;
   - `2` = manifest not found.
 - `haltai drill` runs the containment drills and writes reports under `reports/`.
 - `haltai matrix` runs every failure scenario and checks that HaltAI reports the expected outcome.
+- `haltai validate --environment environment.yaml` checks the boundary declaration that the planned break-glass commands will act on ([environment.md](docs/environment.md)).
 
 Try a failure:
 
@@ -174,6 +175,7 @@ Details, gates and the decision record: [roadmap](docs/roadmap.md). Release-by-r
 | [Roadmap](docs/roadmap.md) | Positioning, operating model, levers, phases and gates |
 | [Release plan](docs/release-plan.md) | Releases 0.2.1 to 1.0.0: build steps, exit criteria, risks |
 | [Threat model](docs/threat-model.md) | What is in scope, what is trusted and what is excluded |
+| [Environment declaration](docs/environment.md) | `environment.yaml` fields and validation rules |
 | [Claims](docs/claims.md) | Claim procedures, evidence levels and decision rules |
 | [Baseline checklist](docs/baseline-checklist.md) | Manual assessment to compare with HaltAI |
 | [AWS backend](docs/aws-backend.md) | Today's AWS drill backend, permissions and safeguards |
