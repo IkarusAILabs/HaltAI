@@ -7,18 +7,20 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import typer
+import yaml
 
 from haltai import __version__
 from haltai.backends import make_backend
 from haltai.checks import run_static_checks
 from haltai.config import BackendKind, HaltAIConfig, load_config
 from haltai.drill import assess
+from haltai.environment import EnvironmentDeclaration, check_environment, load_environment
 from haltai.fingerprint import fingerprint as compute_fingerprint
 from haltai.manifest import DeploymentManifest, check_prerequisites, load_manifest
 from haltai.report import RESULT_LABEL, write_report
 from haltai.safety import SafetyError, preflight
 from haltai.scenarios import SCENARIOS
-from haltai.templates import CONFIG_TEMPLATE, MANIFEST_TEMPLATE
+from haltai.templates import CONFIG_TEMPLATE, ENVIRONMENT_TEMPLATE, MANIFEST_TEMPLATE
 
 app = typer.Typer(help="HaltAI: containability assurance for registered AI-agent deployments.",
                   no_args_is_help=True)
@@ -47,21 +49,36 @@ def version() -> None:
 @app.command()
 def init(directory: Path = typer.Argument(Path("."), help="Where to write the files"),
          force: bool = typer.Option(False, help="Overwrite existing files")) -> None:
-    """Write a starter haltai.yaml and deployment.yaml (simulated backend)."""
+    """Write starter haltai.yaml, deployment.yaml and environment.yaml (simulated backend)."""
     directory.mkdir(parents=True, exist_ok=True)
-    for name, text in (("haltai.yaml", CONFIG_TEMPLATE), ("deployment.yaml", MANIFEST_TEMPLATE)):
+    for name, text in (("haltai.yaml", CONFIG_TEMPLATE), ("deployment.yaml", MANIFEST_TEMPLATE),
+                       ("environment.yaml", ENVIRONMENT_TEMPLATE)):
         p = directory / name
         if p.exists() and not force:
             typer.echo(f"skip   {p} (exists; use --force)")
             continue
         p.write_text(text, encoding="utf-8")
         typer.echo(f"wrote  {p}")
-    typer.echo("\nNext: `haltai check`, then `haltai drill`. Edit haltai.yaml to switch backend.")
+    typer.echo("\nNext: `haltai check`, then `haltai drill`. Edit haltai.yaml to switch backend.\n"
+               "Break-glass (planned): `haltai validate --environment environment.yaml`.")
 
 
 @app.command()
-def validate(manifest: str | None = typer.Argument(None), config: str | None = ConfigOpt) -> None:
-    """Validate a deployment manifest and report assessment limitations."""
+def validate(manifest: str | None = typer.Argument(None), config: str | None = ConfigOpt,
+             environment: Path | None = typer.Option(
+                 None, "--environment", "-e",
+                 help="Validate an environment declaration (environment.yaml) instead"),
+             as_json: bool = typer.Option(False, "--json",
+                                          help="JSON output (with --environment)")
+             ) -> None:
+    """Validate a deployment manifest, or an environment declaration with --environment.
+
+    With --environment, exit codes: 0 = no blocking limitations; 1 = blocking
+    limitation; 2 = file not found or not a valid declaration.
+    """
+    if environment is not None:
+        _validate_environment(environment, as_json)
+        return
     m = load_manifest(manifest) if manifest else _load(config)[1]
     issues = check_prerequisites(m)
     if not issues:
@@ -71,6 +88,43 @@ def validate(manifest: str | None = typer.Argument(None), config: str | None = C
     for i in issues:
         typer.echo(f"  - {'[blocking] ' if i.blocking else ''}{i.field}: {i.reason}")
     raise typer.Exit(code=1)
+
+
+def _validate_environment(path: Path, as_json: bool) -> None:
+    if not path.exists():
+        typer.echo(f"Environment declaration not found: {path}", err=True)
+        raise typer.Exit(2)
+    try:
+        env: EnvironmentDeclaration = load_environment(path)
+    except (ValueError, TypeError, yaml.YAMLError) as exc:  # includes pydantic ValidationError
+        typer.echo(f"Not a valid environment declaration: {path}\n{exc}", err=True)
+        raise typer.Exit(2) from exc
+    issues = check_environment(env)
+    blocking = any(i.blocking for i in issues)
+    if as_json:
+        typer.echo(json.dumps({
+            "environment": env.name,
+            "boundary": env.boundary.kind.value,
+            "profiles": {p.value: {lv.value: ("covered" if ok else "not_covered")
+                                   for lv, ok in env.lever_coverage(p).items()}
+                         for p in env.levers},
+            "limitations": [i.model_dump(mode="json") for i in issues],
+            "blocking": blocking,
+        }, indent=2))
+    else:
+        typer.echo(f"Environment {env.name}: {env.boundary.kind.value} boundary "
+                   f"{env.boundary.aws_account_id}")
+        for p in env.levers:
+            cov = ", ".join(f"{lv.value}{'' if ok else ' (not covered)'}"
+                            for lv, ok in env.lever_coverage(p).items())
+            typer.echo(f"  profile {p.value}: {cov or 'no levers'}")
+        for i in issues:
+            typer.secho(f"  [{'blocking' if i.blocking else 'limitation'}] {i.field}: "
+                        f"{i.reason}", fg="red" if i.blocking else "yellow")
+        if not issues:
+            typer.secho("  OK: no limitations", fg="green")
+    if blocking:
+        raise typer.Exit(1)
 
 
 @app.command()
