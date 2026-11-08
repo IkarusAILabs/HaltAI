@@ -89,6 +89,7 @@ haltai matrix
 - `haltai matrix` runs every failure scenario and checks that HaltAI reports the expected outcome.
 - `haltai validate --environment environment.yaml` checks the boundary declaration that the planned break-glass commands will act on ([environment.md](docs/environment.md)).
 - `haltai check --environment environment.yaml` adds Claim 3 on the boundary: no agent identity may take over HaltAI's execution role or its controls (in simulation for now).
+- [`testbed/`](testbed/README.md) is a CDK reference environment for a disposable AWS sandbox, with switches for each failure scenario. It writes its own `environment.yaml`.
 
 Try a failure:
 
