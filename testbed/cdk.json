@@ -3,6 +3,7 @@
   "watch": {"exclude": ["cdk.out", "tests", "**/__pycache__"]},
   "context": {
     "@aws-cdk/aws-iam:minimizePolicies": true,
-    "@aws-cdk/core:target-partitions": ["aws"]
+    "@aws-cdk/core:target-partitions": ["aws"],
+    "availability-zones:account=111111111111:region=eu-west-2": ["eu-west-2a", "eu-west-2b", "eu-west-2c"]
   }
 }

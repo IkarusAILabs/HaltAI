@@ -156,6 +156,7 @@ These are rough figures for eu-west-2 at on-demand prices, while deployed. Check
 ## Known limits
 
 - **Not deployed yet.** CI synthesises both variants (`cdk synth`) without AWS credentials. The first deployment is a 0.6.0 step.
+- `cdk.json` caches the availability zones for the placeholder account `111111111111`, so `cdk synth` runs in CI without credentials. With your own account IDs, the CLI looks the zones up when you deploy.
 - The protection SCP exempts the CDK bootstrap roles (`role/cdk-*`), so the testbed can still be updated and destroyed. Claim 3 must show no agent can use those roles.
 - Some protection-SCP statements use `aws:ResourceTag`, which not every action supports. Which denials actually apply is checked in 0.6.0.
 - The S3 and ECR endpoints use private DNS, so their restrictive policies apply to the whole VPC. The testbed's agents use neither service. In real environments, see the [canary design](../docs/design/canary-probe.md#3-could-not-start-is-not-denied).
