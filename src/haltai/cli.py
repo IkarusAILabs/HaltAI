@@ -10,7 +10,7 @@ import typer
 import yaml
 
 from haltai import __version__
-from haltai.backends import make_backend
+from haltai.backends import BackendError, make_backend
 from haltai.backends.sim_environment import SimEnvSettings, SimulatedEnvironment
 from haltai.boundary_escape import assess_boundary
 from haltai.checks import run_static_checks
@@ -32,14 +32,23 @@ ConfigOpt = typer.Option(None, "--config", "-c", help="Path to haltai.yaml")
 
 def _load(config: str | None, backend: str | None = None
           ) -> tuple[HaltAIConfig, DeploymentManifest]:
-    cfg, base = load_config(config)
-    if backend:
-        cfg.backend = BackendKind(backend)
+    try:
+        cfg, base = load_config(config)
+        if backend:
+            cfg.backend = BackendKind(backend)
+    except (ValueError, TypeError, yaml.YAMLError) as exc:
+        typer.echo(f"Invalid configuration: {exc}", err=True)
+        raise typer.Exit(2) from exc
     mpath = cfg.manifest_path(base)
     if not mpath.exists():
-        typer.secho(f"Manifest not found: {mpath}. Run `haltai init` first.", fg="red")
+        typer.echo(f"Manifest not found: {mpath}. Run `haltai init` first.", err=True)
         raise typer.Exit(2)
-    return cfg, load_manifest(mpath)
+    try:
+        manifest = load_manifest(mpath)
+    except (ValueError, TypeError, yaml.YAMLError) as exc:
+        typer.echo(f"Not a valid deployment manifest: {mpath}\n{exc}", err=True)
+        raise typer.Exit(2) from exc
+    return cfg, manifest
 
 
 @app.command()
@@ -175,19 +184,29 @@ def check(config: str | None = ConfigOpt,
     Exit codes:
       0 = no blocking issues;
       1 = blocking limitation, bypass or escape path found;
-      2 = manifest or environment not found or invalid, or unknown scenario.
+      2 = manifest or environment not found or invalid, or invalid usage (e.g. unknown scenario).
     """
     if environment is not None:
         _check_environment(environment, scenario or [], as_json)
         return
     cfg, m = _load(config)
-    b = make_backend(cfg, m, scenario or None)
+    try:
+        b = make_backend(cfg, m, scenario or None)
+    except (ValueError, BackendError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(2) from exc
     res = run_static_checks(b)
     lims = check_prerequisites(m) + res.limitations
 
     if as_json:
+        active_scenarios = list(scenario or (cfg.simulation.scenarios
+                                             if b.name == "simulated" else []))
         data = {
-            "evidence": [e.model_dump(mode="json") for e in (res.evidence + res.escape_evidence)],
+            "backend": b.name,
+            "deployment": m.name,
+            "scenarios": active_scenarios,
+            "evidence": [e.model_dump(mode="json") for e in res.evidence],
+            "escape_evidence": [e.model_dump(mode="json") for e in res.escape_evidence],
             "limitations": [lim.model_dump(mode="json") for lim in lims],
             "bypass_paths": res.bypass_paths,
             "escape_paths": res.escape.paths,
