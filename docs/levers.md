@@ -31,7 +31,7 @@ Every environment backend (`src/haltai/backends/env_base.py`) exposes the same s
 ## How an observation is decided
 
 An observation uses only **effect evidence**:
-- canary probes made as the agent's identity and from the agent's subnets;
+- canary probes made as the agent's identity and from the agent's subnets ([design](design/canary-probe.md));
 - the activity log, the simulated equivalent of CloudTrail and VPC Flow Logs.
 
 Activity in the first `grace_s` seconds after `apply` (default 20 s) is ignored to allow for propagation.

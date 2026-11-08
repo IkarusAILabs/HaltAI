@@ -39,7 +39,7 @@ HaltAI acts on an infrastructure boundary, not on each agent's code.
 - The HaltAI execution role inside the agent account, *provided its protections hold* (section 4.1). It is the one HaltAI identity inside the boundary.
 - The cloud control plane (IAM, Organizations, VPC, ECS, Lambda, EventBridge, SQS, API Gateway) behaving as documented, including eventual consistency.
 - The pre-staged controls created by `prepare`, and the integrity of HaltAI's own configuration.
-- HaltAI's canary probe, which runs with an agent identity in agent subnets using HaltAI's own image. It is trusted to report what that identity and network path can still do.
+- HaltAI's canary probe, which runs with an agent identity in agent subnets using HaltAI's own image, pinned by digest. It is trusted to report what that identity and network path can still do. What it runs and what its results depend on (task definition, canary functions, canary queue policy, marker security group) are HaltAI-staged and protected, because an agent that could change them could fake a `stopped`. See the [canary-probe design](design/canary-probe.md).
 - The audit store for halt, release, drill reports and raw evidence.
 
 **Untrusted or unknown:**
@@ -57,10 +57,10 @@ ECS tasks, network ACL associations, Lambda concurrency, schedules and the canar
 | Protection | Threat it addresses |
 |---|---|
 | Only the operator role can assume it (exact ARN in the trust policy) | An agent, or another in-account identity, takes over HaltAI's powers |
-| Only this role is exempt from the halt SCP | A broader exemption creates an uncontained path during a halt |
+| Only this role is exempt from the halt SCP. The `isolate` SCP also allows pulls of the canary image, by action and resource, not by principal | A broader exemption creates an uncontained path during a halt |
 | A standing protection SCP denies all other principals the ability to modify, delete, pass, assume or retag it and HaltAI-staged resources | An agent weakens or retargets the controls before or during a halt |
 | No workload runs as it | Agent code inherits HaltAI's permissions |
-| Least privilege: in-scope lever actions only; `iam:PassRole` only for in-scope agent roles (for the canary) | A stolen session can do more than halt and release |
+| Least privilege: in-scope lever actions only; `iam:PassRole` only for in-scope agent roles and only to ECS and Lambda; `ecs:RunTask` only for the pinned canary task definition (for the canary) | A stolen session can do more than halt and release |
 | Every use is logged to CloudTrail, and use outside HaltAI commands raises an alert | Misuse goes unnoticed |
 
 **Out of scope:** compromise of the operator role, or of the execution role through credentials obtained outside these paths. The trust boundary holds only while these protections hold.
@@ -115,7 +115,7 @@ Targets are thresholds for tests, not promises. Results always report the measur
 1. The declaration lists every identity, subnet, runtime and intake path the agents use.
 2. The pre-staged controls are unchanged since `prepare`, or drift is detected.
 3. Policy simulation reflects effective permissions for the actions and resources simulated.
-4. The canary probe uses the same identity and network path as the agents.
+4. The canary probe uses the same identity and network path as the agents, and HaltAI tells canary activity apart from agent activity by its own records of what it launched, not by tags.
 5. Results apply to the fingerprinted configuration at the time of the test.
 
 When an assumption is known not to hold, HaltAI reports a limitation, never a pass.

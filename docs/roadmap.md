@@ -165,7 +165,7 @@ The execution role is the one HaltAI identity inside the boundary, so it is the 
    - changing their tags;
    - changing their trust policies.
 4. **No workload runs as it.** No task definition, function or instance profile uses the execution role. This is checked the same way as today's dedicated-identity check.
-5. **Least privilege:** only the lever actions on in-scope resources, plus `ecs:RunTask` and `iam:PassRole` limited to in-scope agent roles for the canary. No broad IAM permissions.
+5. **Least privilege:** only the lever actions on in-scope resources, plus `ecs:RunTask` (the pinned canary task definition only) and `iam:PassRole` limited to in-scope agent roles for the canary. No broad IAM permissions. Policy sketches are in the [canary-probe design](design/canary-probe.md#6-execution-role-policies-roadmap-71-sketch).
 6. **Audited:** every assumption and action is logged to CloudTrail. Any use outside `prepare`, `drill`, `halt`, `status` or `release` is an alert.
 
 Claim 3 is extended to the boundary. No identity inside the boundary may be able to modify, assume or pass the execution role, change the protection SCP's targets, or retag HaltAI-staged resources.
@@ -182,7 +182,7 @@ The current `deployment.yaml` describes one agent. It evolves into an **environm
 
 A successful API response is never proof that activity stopped. Verification evidence, from strongest to weakest:
 
-1. **Effect probes as the agent, without agent code.** A HaltAI-owned canary task runs with the agent's role in the agent's subnets and tries the protected effects: a model endpoint, tool endpoints, a synthetic write.
+1. **Effect probes as the agent, without agent code.** A HaltAI-owned canary task runs with the agent's role in the agent's subnets and tries the protected effects: a model endpoint, tool endpoints, a synthetic write. It reports through its exit code, which survives a network and identity halt ([canary-probe design](design/canary-probe.md)).
 2. **Infrastructure observation.** Running-task counts, throttles, rule and mapping state, queue receive metrics, VPC Flow Logs, CloudTrail denials.
 3. **Policy evaluation.** IAM policy simulation for the agent's identities (Claims 1 and 3 at `boundary_assessed`).
 4. **Control-plane state.** The policy is attached and the NACL is associated. This shows *configured* only.
