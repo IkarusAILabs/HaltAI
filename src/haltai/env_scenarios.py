@@ -12,7 +12,12 @@ from dataclasses import dataclass, field
 
 from haltai.backends.env_base import EnvironmentBackend
 from haltai.backends.sim_environment import (
+    ASSUME_EXEC,
     AUTOSCALE,
+    EDIT_STAGED,
+    LEAVE_ORG,
+    MODIFY_EXEC,
+    PASS_EXEC,
     SG_NETWORK,
     SHARED_NAT,
     SLOW_SCP,
@@ -22,6 +27,7 @@ from haltai.backends.sim_environment import (
     SimulatedEnvironment,
 )
 from haltai.environment import LEVER_ORDER, EnvironmentDeclaration, Lever, Profile
+from haltai.models import ClaimResult
 from haltai.observations import CollateralObservation, LeverObservation, ObservedOutcome
 
 S, P, N = ObservedOutcome.STOPPED, ObservedOutcome.PARTIAL, ObservedOutcome.NOT_STOPPED
@@ -38,6 +44,7 @@ class EnvScenario:
     flags: tuple[str, ...] = ()
     collateral_violation: bool = False  # a must-not-hit service was interrupted
     in_boundary_impact: bool = False  # isolate interrupted in-boundary services (allowed)
+    claim3: ClaimResult = ClaimResult.VERIFIED  # Claim 3 on the boundary
 
 
 def _all(outcome: ObservedOutcome, **overrides: ObservedOutcome) -> dict[Lever, ObservedOutcome]:
@@ -73,6 +80,23 @@ ENV_SCENARIOS: dict[str, EnvScenario] = {
         EnvScenario(SLOW_SCP, "The halt SCP has not taken effect within the observation "
                     "window.",
                     Profile.HALT_AGENTS, _all(S, identity=N), (SLOW_SCP,)),
+        # Claim 3 on the boundary (haltai.boundary_escape). Only assuming the execution
+        # role also changes what happens during the halt.
+        EnvScenario(ASSUME_EXEC, "Agents may assume HaltAI's execution role, which the "
+                    "halt SCP exempts; blocked agents switch to it.",
+                    Profile.HALT_AGENTS, _all(S, identity=P), (ASSUME_EXEC,),
+                    claim3=ClaimResult.FAILED),
+        EnvScenario(MODIFY_EXEC, "Agents may modify, retag or delete HaltAI's execution "
+                    "role.",
+                    Profile.HALT_AGENTS, _all(S), (MODIFY_EXEC,), claim3=ClaimResult.FAILED),
+        EnvScenario(PASS_EXEC, "Agents may pass HaltAI's execution role to compute.",
+                    Profile.HALT_AGENTS, _all(S), (PASS_EXEC,), claim3=ClaimResult.FAILED),
+        EnvScenario(LEAVE_ORG, "The agent account may leave the organization, dropping "
+                    "every SCP.",
+                    Profile.HALT_AGENTS, _all(S), (LEAVE_ORG,), claim3=ClaimResult.FAILED),
+        EnvScenario(EDIT_STAGED, "Agents may edit HaltAI-staged controls (quarantine NACL, "
+                    "staged deny policies, haltai:managed tags).",
+                    Profile.HALT_AGENTS, _all(S), (EDIT_STAGED,), claim3=ClaimResult.FAILED),
     ]
 }
 

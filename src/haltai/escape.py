@@ -28,6 +28,10 @@ class EscapeKind(StrEnum):
     OTHER_IDENTITY = "other_identity"
     EXISTING_COMPUTE = "existing_compute"
     NEW_COMPUTE = "new_compute"
+    # Claim 3 on the environment boundary (haltai.boundary_escape, roadmap 7.1)
+    HALTAI_IDENTITY = "haltai_identity"  # take over or weaken HaltAI's own roles
+    HALTAI_CONTROL = "haltai_control"  # lift or retarget staged controls
+    SCOPE = "scope"  # move itself out of a tagged boundary
 
 
 @dataclass(frozen=True)
@@ -36,10 +40,12 @@ class EscapeAction:
     resource: str
     kind: EscapeKind
     why: str
+    condition: str = ""  # e.g. "tag haltai:managed=true" for staged resources
 
     @property
     def label(self) -> str:
-        return f"{self.action} on {self.resource}"
+        base = f"{self.action} on {self.resource}"
+        return f"{base} [{self.condition}]" if self.condition else base
 
 
 # Compute changes are only escapes when the agent can also hand them another role.

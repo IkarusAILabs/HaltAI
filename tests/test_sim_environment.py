@@ -14,6 +14,7 @@ from haltai.backends.sim_environment import (
     SimulatedEnvironment,
     _Activity,
 )
+from haltai.boundary_escape import assess_boundary
 from haltai.env_scenarios import ENV_SCENARIOS, WARMUP_S, halt_and_observe, run_env_scenario
 from haltai.environment import LEVER_ORDER, BoundaryKind, Lever, Profile, load_environment
 from haltai.observations import ObservedOutcome
@@ -45,8 +46,10 @@ def halt_one(sim, lever, profile=Profile.HALT_AGENTS, settle=60):
 @pytest.mark.parametrize("name", list(ENV_SCENARIOS))
 def test_env_scenario_matrix(env, name):
     s = ENV_SCENARIOS[name]
-    _, run = run_env_scenario(env, s)
+    sim, run = run_env_scenario(env, s)
     assert run.outcomes == s.expected, {lv.value: o.evidence for lv, o in run.observations.items()}
+    c3 = assess_boundary(sim)
+    assert c3.result == s.claim3, c3.rationale
     assert any(c.violation for c in run.collateral) == s.collateral_violation
     assert any(c.in_boundary and not c.healthy for c in run.collateral) == s.in_boundary_impact
 
