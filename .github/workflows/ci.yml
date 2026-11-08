@@ -19,3 +19,21 @@ jobs:
       - run: mypy src
       - run: pytest
       - run: cd examples && haltai matrix
+  testbed:
+    # CDK reference environment (issue #21): synth only. No deploy and no AWS credentials.
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: testbed
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: pip install -r requirements.txt
+      - run: pytest tests -q
+      - run: npx --yes aws-cdk@2.160.0 synth --quiet -c variant=dedicated
+      - run: npx --yes aws-cdk@2.160.0 synth --quiet -c variant=shared -c toggles=shared_nat,sg_change_keeps_connections,untracked_credential

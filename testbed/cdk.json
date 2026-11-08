@@ -1,0 +1,8 @@
+{
+  "app": "python app.py",
+  "watch": {"exclude": ["cdk.out", "tests", "**/__pycache__"]},
+  "context": {
+    "@aws-cdk/aws-iam:minimizePolicies": true,
+    "@aws-cdk/core:target-partitions": ["aws"]
+  }
+}

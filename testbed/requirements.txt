@@ -1,0 +1,6 @@
+# CDK app for the HaltAI testbed. The CDK CLI needs Node.js 18 or later:
+#   npx aws-cdk@2.160.0 synth
+aws-cdk-lib==2.160.0
+constructs>=10.0.0,<11.0.0
+pyyaml>=6.0
+pytest>=8
