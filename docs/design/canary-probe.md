@@ -163,6 +163,9 @@ All of these make that lever's canary evidence **`inconclusive`**. In the 0.4.0 
    - **Endpoint policies** allow only pulls from `haltai/canary`, reads of the ECR layer bucket, and `sqs:SendMessage` to the canary queue.
    - **`prepare` checks** that nothing else has a network interface in that subnet. A customer endpoint there, for example for Bedrock, would let agents reach the model through the quarantine, so it is a **blocking** finding.
    - **What remains open to agents** under quarantine: pulling HaltAI's canary image, and sending to the canary queue (which the identity lever also denies). This is reported, never hidden.
+   - **Private DNS is VPC-wide** (found while building the testbed, #21). An interface endpoint with private DNS takes over that service's hostname for the whole VPC, so its restrictive policy would also apply to the agents' normal traffic. So:
+     - The canary reaches SQS through the endpoint's **own DNS name**, with private DNS off. The agents' SQS traffic keeps using its normal path, which the quarantine cuts.
+     - ECR and S3 need private DNS, because ECS pulls the image using the standard hostnames. Where agents also pull private ECR images or use S3, those endpoint policies must allow that too, which leaves it reachable during a quarantine. `prepare` reports that as residual.
    - Name resolution (Route 53 Resolver) and the task credentials endpoint (169.254.170.2) aren't filtered by network ACLs **(V3)**.
 
 For Lambda agents there is no image pull, and staged functions keep their network interfaces, so the pull problem doesn't arise.

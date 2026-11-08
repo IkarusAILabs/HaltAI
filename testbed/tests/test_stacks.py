@@ -189,11 +189,11 @@ def test_shared_nat_puts_the_outside_service_in_agent_subnets():
 
 def test_assume_execution_role_toggle():
     t = agents(toggles=frozenset({"agent_can_assume_execution_role"}))
-    t.has_resource_properties("AWS::IAM::Role", {
-        "RoleName": "haltai-execution",
-        "AssumeRolePolicyDocument": {"Statement": [Match.object_like({
-            "Principal": {"AWS": Match.array_with([
-                "arn:aws:iam::222222222222:role/haltai-operator"])}})]}})
+    (role,) = t.find_resources("AWS::IAM::Role", {
+        "Properties": {"RoleName": "haltai-execution"}}).values()
+    trust = json.dumps(role["Properties"]["AssumeRolePolicyDocument"])
+    assert "arn:aws:iam::222222222222:role/haltai-operator" in trust
+    assert "ResearchAgentRole" in trust  # the agent task role is trusted too
 
 
 def test_modify_execution_role_toggle():
