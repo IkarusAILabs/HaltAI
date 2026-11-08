@@ -80,6 +80,6 @@ That is what `status` will show during a real halt.
 
 The last five are **Claim 3 on the boundary** scenarios: each makes Claim 3 `failed` ([claims.md](claims.md#claim-3-on-the-environment-boundary)). Only `agent_can_assume_execution_role` also changes the halt. Blocked agents switch to the execution role, which the halt SCP exempts, so the identity lever is only `partial`. The others are permissions an agent could use before or around a halt; the matrix checks that Claim 3 catches them. `agent_can_retag_scope` applies to tagged boundaries only and is tested separately.
 
-The matrix runs in CI as `tests/test_sim_environment.py::test_env_scenario_matrix`. Other tests in that file cover each lever on its own and the honesty rules: an active control alone, no positive control, and activity inside the window.
+The [CDK testbed](../testbed/README.md#failure-toggles) builds most of these scenarios on real AWS, using the same names. The matrix runs in CI as `tests/test_sim_environment.py::test_env_scenario_matrix`. Other tests in that file cover each lever on its own and the honesty rules: an active control alone, no positive control, and activity inside the window.
 
 `schedule_outside_boundary` shows why HaltAI uses several levers. The undeclared schedule keeps starting tasks, so intake and workload are only `partial`. But identity and network stay `stopped`, because the stray tasks run as an agent role in an agent subnet.
