@@ -46,7 +46,7 @@ Each step is one pull request unless noted. Steps within a release are in depend
 ### 0.3.0 — The emergency boundary (Phase 1)
 
 1. #18: `environment.yaml` schema, loader, `check_environment()`, and `haltai validate --environment`. `haltai init` writes an example.
-2. ∥ #20: canary-probe design (`docs/design/canary-probe.md`), together with the execution-role design (roadmap 7.1): trust policy, halt-SCP exception, protection SCP. **Design only.**
+2. ∥ #20: canary-probe design ([`docs/design/canary-probe.md`](design/canary-probe.md)), together with the execution-role design (roadmap 7.1): trust policy, halt-SCP exception, protection SCP. **Design only.**
 3. #19: simulated environment backend with the four levers and the six lever failure scenarios. Depends on step 1.
 4. ∥ #21: CDK reference environment (dedicated-account and shared-account variants), with `cdk synth` in CI. Depends on step 1 and uses step 2.
 5. Claim 3 extended to the boundary in simulation. No identity inside the boundary may modify, assume or pass the execution role, retarget the protection SCP, or retag HaltAI-staged resources. Add simulated scenarios for each.

@@ -8,7 +8,7 @@ The rules below are implemented in `src/haltai/evaluate.py` and covered one-to-o
 - Claim 2 becomes the latching check across restart, autoscaling, retries and schedules.
 - Claim 3 is mandatory in `haltai prepare`.
 
-Effect evidence will come from a HaltAI-owned canary probe running as the agent's identity, plus infrastructure observation, without agent code. See [roadmap section 8](roadmap.md#8-verification).
+Effect evidence will come from a HaltAI-owned canary probe running as the agent's identity, plus infrastructure observation, without agent code. See [roadmap section 8](roadmap.md#8-verification) and the [canary-probe design](design/canary-probe.md).
 
 ## Evidence levels
 
