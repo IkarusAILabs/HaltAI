@@ -11,6 +11,8 @@ import yaml
 
 from haltai import __version__
 from haltai.backends import make_backend
+from haltai.backends.sim_environment import SimEnvSettings, SimulatedEnvironment
+from haltai.boundary_escape import assess_boundary
 from haltai.checks import run_static_checks
 from haltai.config import BackendKind, HaltAIConfig, load_config
 from haltai.drill import assess
@@ -90,7 +92,7 @@ def validate(manifest: str | None = typer.Argument(None), config: str | None = C
     raise typer.Exit(code=1)
 
 
-def _validate_environment(path: Path, as_json: bool) -> None:
+def _load_environment(path: Path) -> EnvironmentDeclaration:
     if not path.exists():
         typer.echo(f"Environment declaration not found: {path}", err=True)
         raise typer.Exit(2)
@@ -99,6 +101,11 @@ def _validate_environment(path: Path, as_json: bool) -> None:
     except (ValueError, TypeError, yaml.YAMLError) as exc:  # includes pydantic ValidationError
         typer.echo(f"Not a valid environment declaration: {path}\n{exc}", err=True)
         raise typer.Exit(2) from exc
+    return env
+
+
+def _validate_environment(path: Path, as_json: bool) -> None:
+    env = _load_environment(path)
     issues = check_environment(env)
     blocking = any(i.blocking for i in issues)
     if as_json:
@@ -154,15 +161,25 @@ def snapshot(config: str | None = ConfigOpt,
 def check(config: str | None = ConfigOpt,
           scenario: list[str] = typer.Option(None, "--scenario", "-s",
                                              help="Simulated failure scenario (repeatable)"),
-          as_json: bool = typer.Option(False, "--json", help="Output results as JSON")
+          as_json: bool = typer.Option(False, "--json", help="Output results as JSON"),
+          environment: Path | None = typer.Option(
+              None, "--environment", "-e",
+              help="Check an environment declaration: validation plus Claim 3 on the "
+                   "boundary (simulated environment for now)")
           ) -> None:
     """Run static checks only (no containment): identity, bypass, pre-staging, escape.
+
+    With --environment: declaration limitations plus Claim 3 on the boundary, against
+    the simulated environment (-s takes environment escape scenarios).
 
     Exit codes:
       0 = no blocking issues;
       1 = blocking limitation, bypass or escape path found;
-      2 = manifest not found.
+      2 = manifest or environment not found or invalid, or unknown scenario.
     """
+    if environment is not None:
+        _check_environment(environment, scenario or [], as_json)
+        return
     cfg, m = _load(config)
     b = make_backend(cfg, m, scenario or None)
     res = run_static_checks(b)
@@ -194,6 +211,46 @@ def check(config: str | None = ConfigOpt,
                         f"{lim.reason}", fg="red" if lim.blocking else "yellow")
 
     if any(lim.blocking for lim in lims) or res.bypass_paths or res.escape.paths:
+        raise typer.Exit(1)
+
+
+def _check_environment(path: Path, scenarios: list[str], as_json: bool) -> None:
+    env = _load_environment(path)
+    try:
+        backend = SimulatedEnvironment(env, SimEnvSettings(scenarios=list(scenarios)))
+    except ValueError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(2) from exc
+    issues = check_environment(env)
+    c3 = assess_boundary(backend)
+    if as_json:
+        typer.echo(json.dumps({
+            "environment": env.name,
+            "backend": backend.name,
+            "scenarios": list(scenarios),
+            "limitations": [i.model_dump(mode="json") for i in issues],
+            "claim3_boundary": {
+                "result": c3.result.value,
+                "evidence_level": "boundary_assessed",
+                "principals": c3.principals,
+                "escape_paths": c3.assessment.paths,
+                "not_evaluated": c3.assessment.unknown,
+                "rationale": c3.rationale,
+            },
+        }, indent=2))
+    else:
+        typer.echo(f"Environment {env.name} on backend {backend.name}")
+        typer.echo(f"  Claim 3 on the boundary: {c3.result.value} (boundary_assessed; "
+                   f"{len(c3.principals)} agent identities, "
+                   f"{c3.assessment.evaluated} decisions)")
+        for p in c3.assessment.paths:
+            typer.secho(f"  [escape] {p}", fg="red")
+        for u in c3.assessment.unknown:
+            typer.secho(f"  [not evaluated] {u}", fg="yellow")
+        for i in issues:
+            typer.secho(f"  [{'blocking' if i.blocking else 'limitation'}] {i.field}: "
+                        f"{i.reason}", fg="red" if i.blocking else "yellow")
+    if any(i.blocking for i in issues) or c3.assessment.paths:
         raise typer.Exit(1)
 
 

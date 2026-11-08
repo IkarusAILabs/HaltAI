@@ -13,6 +13,8 @@ Every environment backend (`src/haltai/backends/env_base.py`) exposes the same s
 | `observe(lever)` | `status` | Reports what the lever achieved, **from effects only**. Read-only |
 | `observe_collateral()` | `status` | Health of the declared in-boundary and out-of-boundary services |
 | `release(lever)` | `release` | Deactivates the control and restores the recorded pre-halt state exactly |
+| `agent_principals()` | `prepare`, `check --environment` | Concrete agent identities in the boundary |
+| `boundary_escape_allowed(principal, actions)` | `prepare`, `check --environment` | Claim 3 on the boundary: may this identity perform each action? `None` = not evaluated |
 
 ## The simulated world
 
@@ -70,6 +72,13 @@ That is what `status` will show during a real halt.
 | `untracked_credential` | halt-agents | **partial** | stopped | stopped | stopped | none |
 | `shared_nat` | isolate | stopped | stopped | stopped | stopped | **out-of-boundary service interrupted (violation)** |
 | `slow_scp_propagation` | halt-agents | **not_stopped** | stopped | stopped | stopped | none |
+| `agent_can_assume_execution_role` | halt-agents | **partial** | stopped | stopped | stopped | none |
+| `agent_can_modify_execution_role` | halt-agents | stopped | stopped | stopped | stopped | none |
+| `agent_can_pass_execution_role` | halt-agents | stopped | stopped | stopped | stopped | none |
+| `agent_can_leave_organization` | halt-agents | stopped | stopped | stopped | stopped | none |
+| `agent_can_edit_staged_controls` | halt-agents | stopped | stopped | stopped | stopped | none |
+
+The last five are **Claim 3 on the boundary** scenarios: each makes Claim 3 `failed` ([claims.md](claims.md#claim-3-on-the-environment-boundary)). Only `agent_can_assume_execution_role` also changes the halt. Blocked agents switch to the execution role, which the halt SCP exempts, so the identity lever is only `partial`. The others are permissions an agent could use before or around a halt; the matrix checks that Claim 3 catches them. `agent_can_retag_scope` applies to tagged boundaries only and is tested separately.
 
 The matrix runs in CI as `tests/test_sim_environment.py::test_env_scenario_matrix`. Other tests in that file cover each lever on its own and the honesty rules: an active control alone, no positive control, and activity inside the window.
 

@@ -29,6 +29,7 @@ from fnmatch import fnmatch
 
 from haltai.backends.env_base import EnvironmentBackend, LeverError
 from haltai.environment import BoundaryKind, EnvironmentDeclaration, Lever, Profile
+from haltai.escape import EscapeAction, EscapeKind
 from haltai.observations import CollateralObservation, LeverObservation, ObservedOutcome
 
 TICK_S = 1.0
@@ -49,7 +50,17 @@ UNDECLARED_SCHEDULE = "schedule_outside_boundary"
 UNTRACKED_KEY = "untracked_credential"
 SHARED_NAT = "shared_nat"
 SLOW_SCP = "slow_scp_propagation"
-FLAGS = {SG_NETWORK, AUTOSCALE, UNDECLARED_SCHEDULE, UNTRACKED_KEY, SHARED_NAT, SLOW_SCP}
+# Boundary escape flags (Claim 3 on the boundary, haltai.boundary_escape). Only
+# ASSUME_EXEC also changes behaviour during a halt; the others are permissions only.
+ASSUME_EXEC = "agent_can_assume_execution_role"
+MODIFY_EXEC = "agent_can_modify_execution_role"
+PASS_EXEC = "agent_can_pass_execution_role"
+LEAVE_ORG = "agent_can_leave_organization"
+EDIT_STAGED = "agent_can_edit_staged_controls"
+RETAG_SCOPE = "agent_can_retag_scope"  # tagged boundaries only
+ESCAPE_FLAGS = {ASSUME_EXEC, MODIFY_EXEC, PASS_EXEC, LEAVE_ORG, EDIT_STAGED, RETAG_SCOPE}
+FLAGS = {SG_NETWORK, AUTOSCALE, UNDECLARED_SCHEDULE, UNTRACKED_KEY, SHARED_NAT, SLOW_SCP,
+         *ESCAPE_FLAGS}
 
 
 @dataclass
@@ -130,6 +141,8 @@ class SimulatedEnvironment(EnvironmentBackend):
         self.log: list[_Activity] = []
         self.controls: dict[Lever, _Control] = {lv: _Control() for lv in Lever}
         self.account = env.boundary.aws_account_id
+        self.exec_role = (env.operator.execution_role_arn
+                          or f"arn:aws:iam::{self.account}:role/haltai/haltai-execution")
         self.queue_depth = 0
         self.esm_enabled = {m: True for m in env.intake.event_source_mappings}
         self.rules_enabled = {r: True for r in env.intake.eventbridge_rules}
@@ -181,7 +194,7 @@ class SimulatedEnvironment(EnvironmentBackend):
     def _identity_denies(self, principal: str) -> bool:
         if not self._on(Lever.IDENTITY):
             return False
-        if principal == self.env.operator.execution_role_arn:
+        if principal == self.exec_role:
             return False  # the halt SCP's only exemption (roadmap 7.1)
         if self._account_of(principal) != self.account:
             return False  # outside the boundary: no SCP or role policy reaches it
@@ -219,6 +232,12 @@ class SimulatedEnvironment(EnvironmentBackend):
         api_ok = (self._egress_allowed(actor.subnet, new=True)
                   and not self._identity_denies(actor.principal))
         self._record("aws_call", actor, "aws-api", api_ok)
+        if (not api_ok and ASSUME_EXEC in self.flags
+                and self._egress_allowed(actor.subnet, new=True)):
+            as_exec = _Actor(actor.actor_id, actor.kind, actor.source, self.exec_role,
+                             actor.subnet, actor.started_at, declared=actor.declared)
+            self._record("aws_call", as_exec, "aws-api (assumed execution role)",
+                         not self._identity_denies(self.exec_role))
         if UNTRACKED_KEY in self.flags and actor.kind == "ecs_task":
             key = _Actor(actor.actor_id, actor.kind, actor.source,
                          f"arn:aws:iam::{OUTSIDE_ACCOUNT}:user/legacy-agent", actor.subnet,
@@ -482,6 +501,30 @@ class SimulatedEnvironment(EnvironmentBackend):
             outcome = ObservedOutcome.STOPPED
             ev.append("no agent compute ran in the window")
         return self._obs(Lever.WORKLOAD, outcome, start, ev)
+
+    # ------------------------------------------------------------------ Claim 3 on the boundary
+    def agent_principals(self) -> list[str]:
+        return self._canary_principals()
+
+    def boundary_escape_allowed(self, principal: str,
+                                actions: list[EscapeAction]) -> dict[str, bool | None]:
+        return {a.label: self._escape_granted(a) for a in actions}
+
+    def _escape_granted(self, a: EscapeAction) -> bool:
+        on_exec = a.resource == self.exec_role
+        if a.action == "sts:AssumeRole" and on_exec:
+            return ASSUME_EXEC in self.flags
+        if a.action == "iam:PassRole" and on_exec:
+            return PASS_EXEC in self.flags
+        if a.kind == EscapeKind.HALTAI_IDENTITY and on_exec:
+            return MODIFY_EXEC in self.flags
+        if a.action == "organizations:LeaveOrganization":
+            return LEAVE_ORG in self.flags
+        if a.kind == EscapeKind.HALTAI_CONTROL and not a.action.startswith("organizations:"):
+            return EDIT_STAGED in self.flags
+        if a.kind == EscapeKind.SCOPE:
+            return RETAG_SCOPE in self.flags
+        return False
 
     def observe_collateral(self) -> list[CollateralObservation]:
         isolate = any(c.active and c.profile == Profile.ISOLATE for c in self.controls.values())

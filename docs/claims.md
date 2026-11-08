@@ -112,6 +112,30 @@ Any escape path is also a **cap** on Claims 1 and 2: they cannot be better than 
 
 **Limits.** This is policy simulation, not an attempted escape. Identity and compute actions are simulated against `*`, so grants scoped to specific resources may be missed. Credentials the agent holds outside its own role are not covered. Service control policies and permission boundaries are taken into account only as far as `SimulatePrincipalPolicy` evaluates them.
 
+### Claim 3 on the environment boundary
+
+For the break-glass model, Claim 3 also covers HaltAI itself (roadmap section 7.1). In a dedicated agent account, HaltAI's **execution role** is the one identity inside the boundary, and the only one the halt SCP exempts. An agent that can take it over walks straight past the halt.
+
+`haltai.boundary_escape` asks, for **every agent identity** in the boundary, whether it may perform any of these:
+
+| Kind | Actions | Resource |
+|---|---|---|
+| HaltAI identity | `sts:AssumeRole`, `iam:PassRole`, `iam:UpdateAssumeRolePolicy`; `iam:Put/Attach/Delete/DetachRolePolicy`, `iam:Put/DeleteRolePermissionsBoundary`, `iam:DeleteRole`, `iam:Tag/UntagRole` | the execution role |
+| HaltAI identity | `sts:AssumeRole` | the operator role |
+| HaltAI control (account or OU) | `organizations:Detach/Update/DeletePolicy` | SCPs |
+| HaltAI control (account or OU) | `organizations:LeaveOrganization` (drops every SCP) | `*` |
+| HaltAI control | `ec2:ReplaceNetworkAclAssociation`, `ec2:Create/Replace/DeleteNetworkAclEntry`, `ec2:DeleteNetworkAcl` | network ACLs tagged `haltai:managed=true` |
+| HaltAI control | `iam:CreatePolicyVersion`, `iam:SetDefaultPolicyVersion`, `iam:DeletePolicy` | `policy/haltai/*` |
+| HaltAI control | `tag:Tag/UntagResources`, `ec2:Create/DeleteTags` | resources tagged `haltai:managed=true` |
+| HaltAI control (tagged) | `iam:DetachRolePolicy`, `iam:DeleteRolePolicy` | the agent's own role (where the halt deny is attached) |
+| Scope (tagged) | `iam:UntagRole` on its own role; `tag:UntagResources`, `ec2:DeleteTags` | resources with the scope tag |
+
+The rules are the same as for Claim 3: nothing evaluated is `unknown`; any allowed action is `failed`, naming the identity and the action; anything not evaluated is `partial`; otherwise `verified`, at evidence level `boundary_assessed` only. If the execution role isn't declared, it is checked at the path `prepare` will create (`role/haltai/haltai-execution`).
+
+Run it with `haltai check --environment environment.yaml` (exit 0 = no blocking limitation and no escape path, 1 = otherwise, 2 = bad input). Until the AWS adapters arrive in 0.5.0, the decisions come from the simulated environment, where `-s` selects an escape scenario (see [levers.md](levers.md)).
+
+**Limits.** Re-enabling a lever that has been applied (for example scaling a service back up or re-enabling a rule) is not in the catalogue. Once the identity lever is in place, the agent's calls are denied anyway; if the identity lever is only partial, that already shows up in `status`. Live checks of which roles carry a tag, and of OU membership, come with `prepare`.
+
 ## What a result does not mean
 
 `verified` applies to the declared paths, the fingerprinted configuration and the time of the test. It doesn't cover unsupported paths, compromised runtimes, other regions, or work already accepted downstream. A configuration change listed under "Revalidate after" in the report invalidates it.

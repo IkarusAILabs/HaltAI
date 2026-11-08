@@ -72,4 +72,6 @@ A lever is **covered** when the declaration names at least one resource for it:
 | A lever is enabled but not covered | no; reported as `not_covered` |
 | `isolate` is enabled but there are no `collateral.in_boundary` services | no; its blast radius can't be observed |
 
-Some checks need live AWS state, so the validator can only flag them. Examples: whether an account belongs to an OU, which roles carry a tag, whether an agent can modify the execution role (Claim 3). These are reported as non-blocking limitations here and become checks in `prepare`.
+Some checks need live AWS state, so the validator can only flag them. Examples: whether an account belongs to an OU, and which roles carry a tag. These are reported as non-blocking limitations here and become checks in `prepare`.
+
+`haltai check --environment environment.yaml` runs the validation above **plus Claim 3 on the boundary**: can any agent identity take over HaltAI's execution role, retarget its SCPs, leave the organization, edit staged controls, or untag itself out of scope ([claims.md](claims.md#claim-3-on-the-environment-boundary))? Until the AWS adapters exist (0.5.0), the permission decisions come from the simulated environment.

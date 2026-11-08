@@ -11,6 +11,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 
 from haltai.environment import EnvironmentDeclaration, Lever, Profile
+from haltai.escape import EscapeAction
 from haltai.observations import CollateralObservation, LeverObservation
 
 
@@ -52,3 +53,13 @@ class EnvironmentBackend(ABC):
     @abstractmethod
     def observe_collateral(self) -> list[CollateralObservation]:
         """Health of the declared in-boundary and out-of-boundary services."""
+
+    # ---- Claim 3 on the boundary ---------------------------------------------------
+    @abstractmethod
+    def agent_principals(self) -> list[str]:
+        """Concrete agent identities in the boundary."""
+
+    @abstractmethod
+    def boundary_escape_allowed(self, principal: str,
+                                actions: list[EscapeAction]) -> dict[str, bool | None]:
+        """For each action label: may ``principal`` perform it? None if not evaluated."""
