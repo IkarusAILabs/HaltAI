@@ -176,6 +176,7 @@ Details, gates and the decision record: [roadmap](docs/roadmap.md). Release-by-r
 | [Release plan](docs/release-plan.md) | Releases 0.2.1 to 1.0.0: build steps, exit criteria, risks |
 | [Threat model](docs/threat-model.md) | What is in scope, what is trusted and what is excluded |
 | [Environment declaration](docs/environment.md) | `environment.yaml` fields and validation rules |
+| [Levers](docs/levers.md) | Simulated levers, how outcomes are observed, failure scenarios |
 | [Claims](docs/claims.md) | Claim procedures, evidence levels and decision rules |
 | [Baseline checklist](docs/baseline-checklist.md) | Manual assessment to compare with HaltAI |
 | [AWS backend](docs/aws-backend.md) | Today's AWS drill backend, permissions and safeguards |
